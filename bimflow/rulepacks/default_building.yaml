@@ -1,0 +1,176 @@
+rules:
+  # Structural Requirements
+  - name: "Minimum Wall Thickness"
+    description: "Exterior walls must be at least 300mm thick"
+    category: "structural"
+    severity: "critical"
+    condition: "all_walls.thickness >= 0.3"
+    unit: "meters"
+  
+  - name: "Column Spacing Regular"
+    description: "Interior columns should be spaced regularly (4-8m) for structural efficiency"
+    category: "structural"
+    severity: "warning"
+    condition: "column_spacing.min >= 4.0 AND column_spacing.max <= 8.0"
+    unit: "meters"
+  
+  - name: "Floor-to-Ceiling Height"
+    description: "Minimum floor-to-ceiling height must be 2.8m for habitable spaces"
+    category: "structural"
+    severity: "critical"
+    condition: "floor_height >= 2.8"
+    unit: "meters"
+
+  # Fire Safety Requirements
+  - name: "Fire Rating - Load-Bearing Walls"
+    description: "Load-bearing walls must have minimum 60-minute fire rating"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "load_bearing_walls.fire_rating >= 60"
+    unit: "minutes"
+  
+  - name: "Fire Compartmentation"
+    description: "Fire compartments should not exceed 2000 sqm"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "fire_compartment_area <= 2000"
+    unit: "square_meters"
+  
+  - name: "Emergency Exit Routes"
+    description: "Maximum travel distance to emergency exit must be 60m"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "max_exit_travel_distance <= 60"
+    unit: "meters"
+
+  # Accessibility Requirements
+  - name: "Wheelchair Accessibility - Ramps"
+    description: "Ramp gradients must not exceed 1:12 slope"
+    category: "accessibility"
+    severity: "critical"
+    condition: "ramp_gradient <= 0.0833"
+  
+  - name: "Accessible Parking"
+    description: "Minimum 5% of parking spaces must be wheelchair accessible"
+    category: "accessibility"
+    severity: "high"
+    condition: "accessible_parking_ratio >= 0.05"
+  
+  - name: "Door Width - Accessible"
+    description: "Door openings in accessible areas must be at least 900mm"
+    category: "accessibility"
+    severity: "high"
+    condition: "accessible_door_width >= 0.9"
+    unit: "meters"
+
+  # Energy Efficiency
+  - name: "Insulation Value - Exterior Walls"
+    description: "Exterior wall U-value must be ≤ 0.25 W/(m²K)"
+    category: "energy"
+    severity: "high"
+    condition: "exterior_wall_u_value <= 0.25"
+    unit: "W/(m²K)"
+  
+  - name: "Window-to-Wall Ratio"
+    description: "Window area should be 20-40% of facade area for daylighting balance"
+    category: "energy"
+    severity: "medium"
+    condition: "window_wall_ratio >= 0.2 AND window_wall_ratio <= 0.4"
+  
+  - name: "Roof Insulation Value"
+    description: "Roof U-value must be ≤ 0.15 W/(m²K)"
+    category: "energy"
+    severity: "high"
+    condition: "roof_u_value <= 0.15"
+    unit: "W/(m²K)"
+
+  # Lighting & Ventilation
+  - name: "Natural Daylighting"
+    description: "At least 80% of regularly occupied spaces should have direct view to outdoors"
+    category: "indoor_environment"
+    severity: "medium"
+    condition: "daylit_spaces_ratio >= 0.8"
+  
+  - name: "Air Changes Per Hour"
+    description: "Ventilation must provide at least 4 air changes per hour in occupied spaces"
+    category: "indoor_environment"
+    severity: "high"
+    condition: "ach_occupied_spaces >= 4.0"
+    unit: "1/h"
+
+  # Building Services
+  - name: "Plumbing Fixture Efficiency"
+    description: "Water fixtures must meet minimum efficiency standards (6L/min for showers)"
+    category: "utilities"
+    severity: "medium"
+    condition: "shower_flow_rate <= 6.0"
+    unit: "liters/minute"
+  
+  - name: "Electrical Panel Accessibility"
+    description: "Electrical panels must be accessible and clearly labeled"
+    category: "utilities"
+    severity: "high"
+    condition: "electrical_panel_accessible == true AND electrical_panel_labeled == true"
+
+  # Space Planning
+  - name: "Minimum Room Sizes"
+    description: "Living areas must be minimum 20 sqm, bedrooms 12 sqm"
+    category: "space_planning"
+    severity: "high"
+    condition: "living_area_min >= 20 AND bedroom_area_min >= 12"
+    unit: "square_meters"
+  
+  - name: "Bathroom Clearances"
+    description: "Bathroom must have minimum 1.5m clear floor space in front of fixtures"
+    category: "space_planning"
+    severity: "high"
+    condition: "bathroom_clearance >= 1.5"
+    unit: "meters"
+
+  # Structural Safety
+  - name: "Foundation Depth"
+    description: "Foundations must extend below frost line (typically 1.2m minimum)"
+    category: "structural"
+    severity: "critical"
+    condition: "foundation_depth >= 1.2"
+    unit: "meters"
+  
+  - name: "Load Path Continuity"
+    description: "All loads must have a continuous load path to foundation"
+    category: "structural"
+    severity: "critical"
+    condition: "load_path_continuous == true"
+
+  # Seismic Considerations (if applicable)
+  - name: "Seismic Bracing"
+    description: "Mechanical systems must be seismic-braced if in high-risk zone"
+    category: "structural"
+    severity: "high"
+    condition: "seismic_bracing_complete == true"
+
+  # Environmental
+  - name: "Storm Water Management"
+    description: "Site must manage 25mm storm water runoff"
+    category: "environmental"
+    severity: "high"
+    condition: "storm_water_retention >= 25"
+    unit: "millimeters"
+  
+  - name: "Green Space Ratio"
+    description: "Site landscaping should be minimum 30% of total site area"
+    category: "environmental"
+    severity: "medium"
+    condition: "green_space_ratio >= 0.3"
+
+  # Compliance Documentation
+  - name: "Building Code Compliance"
+    description: "All designs must comply with local building codes"
+    category: "compliance"
+    severity: "critical"
+    condition: "building_code_reviewed == true AND building_code_approved == true"
+  
+  - name: "Permits and Inspections"
+    description: "Project must pass all required building inspections"
+    category: "compliance"
+    severity: "critical"
+    condition: "inspection_status == 'passed'"

@@ -1,0 +1,113 @@
+@startuml BIMFlow_Architecture
+
+!define RECTANGLE class
+
+skinparam packageStyle rectangle
+skinparam component {
+  BackgroundColor<<frontend>> LightBlue
+  BackgroundColor<<gateway>> LightGreen
+  BackgroundColor<<service>> LightYellow
+  BackgroundColor<<data>> LightCoral
+  BackgroundColor<<external>> LightGray
+}
+
+package "Client Layer" {
+  [Web UI\nReact + TypeScript] as WebUI <<frontend>>
+  [CLI\nPython] as CLI <<frontend>>
+  [Third-party Apps] as ThirdParty <<frontend>>
+}
+
+package "API Gateway Layer" {
+  [API Gateway\nFastAPI] as Gateway <<gateway>>
+  [OAuth 2.1\nAuthentication] as Auth <<gateway>>
+  [Rate Limiter\nRedis] as RateLimit <<gateway>>
+  [Load Balancer\nNginx] as LB <<gateway>>
+}
+
+package "Microservices Layer" {
+  [Intent Capture\nService] as IntentService <<service>>
+  [Parametric Generator\nService] as GeneratorService <<service>>
+  [Specification\nService] as SpecService <<service>>
+  [Analytics\nService] as AnalyticsService <<service>>
+  [Compliance\nService] as ComplianceService <<service>>
+  [Automation\nService] as AutomationService <<service>>
+}
+
+package "Data Layer" {
+  database "PostgreSQL\nMetadata" as Postgres <<data>>
+  database "MongoDB\nDocuments" as Mongo <<data>>
+  database "Redis\nCache" as Redis <<data>>
+  storage "MinIO/S3\nIFC Files" as S3 <<data>>
+  database "Elasticsearch\nSearch" as Elastic <<data>>
+}
+
+package "Message Queue" {
+  queue "RabbitMQ\nEvent Bus" as RabbitMQ <<data>>
+}
+
+package "External Services" {
+  [OpenAI API\nGPT-4] as OpenAI <<external>>
+  [IFC.js Library] as IFCjs <<external>>
+  [IfcOpenShell] as IFCShell <<external>>
+  [Code Databases\nIBC, ADA] as CodeDB <<external>>
+  [Email Service\nSendGrid] as Email <<external>>
+}
+
+' Client to Gateway connections
+WebUI --> LB
+CLI --> LB
+ThirdParty --> LB
+
+' Gateway layer connections
+LB --> Gateway
+Gateway --> Auth
+Gateway --> RateLimit
+Gateway ..> IntentService : HTTP/REST
+Gateway ..> GeneratorService : HTTP/REST
+Gateway ..> SpecService : HTTP/REST
+Gateway ..> AnalyticsService : HTTP/REST
+Gateway ..> ComplianceService : HTTP/REST
+Gateway ..> AutomationService : HTTP/REST
+
+' Service to Data connections
+IntentService --> Postgres
+IntentService --> Mongo
+IntentService --> Redis
+IntentService --> OpenAI
+
+GeneratorService --> Postgres
+GeneratorService --> S3
+GeneratorService --> IFCShell
+GeneratorService --> RabbitMQ
+
+SpecService --> Postgres
+SpecService --> Mongo
+SpecService --> RabbitMQ
+
+AnalyticsService --> Postgres
+AnalyticsService --> Redis
+AnalyticsService --> RabbitMQ
+
+ComplianceService --> Postgres
+ComplianceService --> CodeDB
+ComplianceService --> RabbitMQ
+
+AutomationService --> Postgres
+AutomationService --> RabbitMQ
+AutomationService --> Email
+
+' Frontend to External
+WebUI --> IFCjs
+
+' Message Queue connections
+RabbitMQ ..> IntentService : Subscribe
+RabbitMQ ..> GeneratorService : Subscribe
+RabbitMQ ..> SpecService : Subscribe
+RabbitMQ ..> AnalyticsService : Subscribe
+RabbitMQ ..> ComplianceService : Subscribe
+
+' Search integration
+IntentService --> Elastic
+SpecService --> Elastic
+
+@enduml
