@@ -1,0 +1,327 @@
+@startuml BIMFlow_Class_Diagram
+
+' Core Domain Models
+class User {
+  +id: UUID
+  +email: str
+  +username: str
+  +password_hash: str
+  +full_name: str
+  +organization: str
+  +role: UserRole
+  +is_active: bool
+  +created_at: datetime
+  +updated_at: datetime
+  +preferences: dict
+  --
+  +authenticate(password: str): bool
+  +update_profile(data: dict): User
+  +change_password(old: str, new: str): bool
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+  VIEWER
+}
+
+class Project {
+  +id: UUID
+  +name: str
+  +description: str
+  +owner_id: UUID
+  +asset_type: AssetType
+  +status: ProjectStatus
+  +location: dict
+  +metadata: dict
+  +created_at: datetime
+  +updated_at: datetime
+  --
+  +add_model(model: Model): Model
+  +get_models(): List[Model]
+  +update_status(status: ProjectStatus): Project
+  +share_with(user_id: UUID, role: str): ProjectMember
+}
+
+enum AssetType {
+  BUILDING
+  BRIDGE
+  ROAD
+  HIGHRISE
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+class Model {
+  +id: UUID
+  +project_id: UUID
+  +name: str
+  +version: int
+  +ifc_version: str
+  +file_path: str
+  +file_size: int
+  +status: ModelStatus
+  +intent_data: dict
+  +parameters: dict
+  +created_at: datetime
+  +updated_at: datetime
+  --
+  +generate(parameters: dict): Model
+  +download(): bytes
+  +update_parameters(params: dict): Model
+  +create_variant(changes: dict): Model
+}
+
+enum ModelStatus {
+  PROCESSING
+  READY
+  ERROR
+}
+
+class Intent {
+  +id: UUID
+  +user_id: UUID
+  +project_id: UUID
+  +raw_text: str
+  +parsed_parameters: dict
+  +confidence_score: float
+  +clarifications: List[Clarification]
+  +status: IntentStatus
+  +created_at: datetime
+  --
+  +parse(text: str): Intent
+  +refine(clarifications: dict): Intent
+  +validate(): bool
+}
+
+class Clarification {
+  +question: str
+  +suggestions: List[str]
+  +required: bool
+  +answer: str
+}
+
+enum IntentStatus {
+  PARSING
+  NEEDS_CLARIFICATION
+  READY
+  FAILED
+}
+
+class Specification {
+  +id: UUID
+  +model_id: UUID
+  +project_id: UUID
+  +version: int
+  +sections: List[SpecSection]
+  +materials: List[Material]
+  +created_at: datetime
+  +updated_at: datetime
+  --
+  +generate(template: str): Specification
+  +export(format: str): bytes
+  +add_section(section: SpecSection): Specification
+}
+
+class SpecSection {
+  +section_id: str
+  +title: str
+  +subsections: List[SpecSubsection]
+  +content: str
+}
+
+class Material {
+  +material_id: str
+  +name: str
+  +properties: dict
+  +standards: List[str]
+  +cost_per_unit: float
+  +carbon_factor: float
+}
+
+class AnalyticsMetric {
+  +id: UUID
+  +model_id: UUID
+  +metric_type: MetricType
+  +metric_name: str
+  +value: float
+  +unit: str
+  +category: str
+  +metadata: dict
+  +calculated_at: datetime
+  --
+  +calculate(model: Model): AnalyticsMetric
+}
+
+enum MetricType {
+  AREA
+  VOLUME
+  COST
+  CARBON
+  CUSTOM
+}
+
+class ComplianceCheck {
+  +id: UUID
+  +model_id: UUID
+  +project_id: UUID
+  +check_date: datetime
+  +rule_sets: List[str]
+  +overall_status: ComplianceStatus
+  +checks: List[RuleCheck]
+  +statistics: dict
+  --
+  +run(rule_sets: List[str]): ComplianceCheck
+  +get_issues(): List[RuleCheck]
+  +export_report(format: str): bytes
+}
+
+class RuleCheck {
+  +rule_id: str
+  +category: str
+  +description: str
+  +status: CheckStatus
+  +required_value: str
+  +actual_value: str
+  +locations: List[str]
+  +severity: Severity
+  +fix_suggestion: str
+}
+
+enum ComplianceStatus {
+  PASS
+  FAIL
+  WARNING
+}
+
+enum CheckStatus {
+  PASS
+  FAIL
+  WARNING
+  NOT_APPLICABLE
+}
+
+enum Severity {
+  CRITICAL
+  MAJOR
+  MINOR
+  INFO
+}
+
+class Workflow {
+  +id: UUID
+  +name: str
+  +description: str
+  +owner_id: UUID
+  +trigger: WorkflowTrigger
+  +actions: List[WorkflowAction]
+  +status: WorkflowStatus
+  +created_at: datetime
+  --
+  +execute(): WorkflowExecution
+  +add_action(action: WorkflowAction): Workflow
+}
+
+class WorkflowTrigger {
+  +type: TriggerType
+  +config: dict
+}
+
+enum TriggerType {
+  SCHEDULE
+  EVENT
+  MANUAL
+}
+
+class WorkflowAction {
+  +type: ActionType
+  +parameters: dict
+  +order: int
+}
+
+enum ActionType {
+  GENERATE_MODEL
+  RUN_COMPLIANCE
+  CALCULATE_ANALYTICS
+  SEND_NOTIFICATION
+  EXPORT_REPORT
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+' Service Interfaces
+interface IIntentCaptureService {
+  +capture_intent(text: str, asset_type: AssetType): Intent
+  +refine_intent(intent_id: UUID, clarifications: dict): Intent
+  +get_intent(intent_id: UUID): Intent
+}
+
+interface IParametricGeneratorService {
+  +generate_model(intent_id: UUID, parameters: dict): Model
+  +get_model_status(model_id: UUID): ModelStatus
+  +download_model(model_id: UUID): bytes
+  +update_model(model_id: UUID, parameters: dict): Model
+}
+
+interface ISpecificationService {
+  +generate_specification(model_id: UUID, template: str): Specification
+  +get_specification(spec_id: UUID): Specification
+  +export_specification(spec_id: UUID, format: str): bytes
+}
+
+interface IAnalyticsService {
+  +calculate_metrics(model_id: UUID, metrics: List[MetricType]): List[AnalyticsMetric]
+  +get_analytics_report(model_id: UUID): dict
+  +compare_models(model_ids: List[UUID]): dict
+}
+
+interface IComplianceService {
+  +run_compliance_check(model_id: UUID, rule_sets: List[str]): ComplianceCheck
+  +get_check_results(check_id: UUID): ComplianceCheck
+  +export_compliance_report(check_id: UUID, format: str): bytes
+}
+
+interface IAutomationService {
+  +create_workflow(workflow: Workflow): Workflow
+  +execute_workflow(workflow_id: UUID): WorkflowExecution
+  +get_workflow_history(workflow_id: UUID): List[WorkflowExecution]
+}
+
+' Relationships
+User "1" -- "0..*" Project : owns
+Project "1" -- "0..*" Model : contains
+Project "1" -- "0..*" Intent : has
+Model "1" -- "0..1" Specification : generates
+Model "1" -- "0..*" AnalyticsMetric : calculates
+Model "1" -- "0..*" ComplianceCheck : validates
+Intent "1" -- "0..*" Clarification : requires
+Specification "1" -- "0..*" SpecSection : contains
+Specification "1" -- "0..*" Material : references
+ComplianceCheck "1" -- "0..*" RuleCheck : includes
+Workflow "1" -- "0..*" WorkflowAction : executes
+User "1" -- "0..*" Workflow : creates
+
+User ..> UserRole
+Project ..> AssetType
+Project ..> ProjectStatus
+Model ..> ModelStatus
+Intent ..> IntentStatus
+AnalyticsMetric ..> MetricType
+ComplianceCheck ..> ComplianceStatus
+RuleCheck ..> CheckStatus
+RuleCheck ..> Severity
+Workflow ..> WorkflowStatus
+WorkflowTrigger ..> TriggerType
+WorkflowAction ..> ActionType
+
+@enduml
