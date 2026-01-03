@@ -1,0 +1,70 @@
+/* src/assets/ApiAccessPage.css */
+.dashboard-api {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.dashboard-api__header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.dashboard-api__header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.dashboard-api__header p {
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+.api-card {
+  background: white;
+  border-radius: 20px;
+  padding: 3rem;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+.api-key {
+  margin-bottom: 3rem;
+}
+
+.api-key label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1a1a1a;
+}
+
+.key-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 12px;
+  font-family: monospace;
+}
+
+.key-display code {
+  flex: 1;
+  font-size: 1.1rem;
+  color: #4b5563;
+}
+
+.api-docs pre {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  margin: 1.5rem 0;
+}
+
+.api-docs .btn {
+  margin-top: 1rem;
+}

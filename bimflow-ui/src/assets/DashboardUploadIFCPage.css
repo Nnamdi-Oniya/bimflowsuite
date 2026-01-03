@@ -1,0 +1,184 @@
+/* src/assets/DashboardUploadIFCPage.css – CLEAN DASHBOARD STYLE */
+.dashboard-upload {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.dashboard-upload__header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.dashboard-upload__header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 0.75rem;
+}
+
+.dashboard-upload__header p {
+  font-size: 1.2rem;
+  color: #6b7280;
+}
+
+.dashboard-upload__card {
+  background: white;
+  border-radius: 20px;
+  padding: 3rem;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+.dropzone {
+  border: 3px dashed #d1d5db;
+  border-radius: 16px;
+  padding: 4rem 2rem;
+  text-align: center;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 2.5rem;
+}
+
+.dropzone:hover, .dropzone.active {
+  border-color: #f8780f;
+  background: #fff8f0;
+}
+
+.dropzone-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.dropzone h3 {
+  font-size: 1.5rem;
+  color: #1a1a1a;
+  margin: 1rem 0;
+}
+
+.browse {
+  color: #f8780f;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.dropzone small {
+  color: #9ca3af;
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.file-selected {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: #f0f172;
+  border-radius: 16px;
+  color: white;
+  margin-bottom: 2.5rem;
+}
+
+.file-icon {
+  font-size: 3.5rem;
+}
+
+.file-info h3 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.change-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 2px solid #f8780f;
+  color: #f8780f;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.change-btn:hover {
+  background: #f8780f;
+  color: white;
+}
+
+.features-list {
+  margin: 3rem 0;
+  text-align: center;
+}
+
+.features-list h3 {
+  font-size: 1.5rem;
+  color: #1a1a1a;
+  margin-bottom: 1.5rem;
+}
+
+.features-list ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.features-list li {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.upload-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* Success State */
+.success-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin: 3rem 0;
+}
+
+.success-card {
+  text-align: center;
+  padding: 2rem;
+  background: white;
+  border-radius: 16px;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.success-value {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #1a1a1a;
+  display: block;
+}
+
+.success-actions {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .upload-actions {
+    flex-direction: column;
+  }
+  .features-list ul {
+    grid-template-columns: 1fr;
+  }
+  .success-grid {
+    grid-template-columns: 1fr;
+  }
+}
