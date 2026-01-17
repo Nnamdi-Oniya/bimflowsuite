@@ -1,0 +1,258 @@
+/* src/assets/CTANewsSection.css – UPDATED WITH STUNNING 3D FAQ */
+.cta-section {
+  position: relative;
+  min-height: 500px;
+  background: linear-gradient(rgba(78, 68, 60, 0.9), rgba(0, 0, 0, 0.8)), url('/images/Engineers.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  display: flex;
+  align-items: center;
+}
+
+.cta-section__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(78, 68, 60, 0.85), rgba(0, 0, 0, 0.7));
+}
+
+.cta-section__container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  position: relative;
+  z-index: 2;
+}
+
+.cta-section__content {
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  padding: 3rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-align: center;
+}
+
+.cta-section__title {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 1rem;
+}
+
+.cta-section__text {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 2rem;
+}
+
+.cta-section__btn {
+  background: #F8780F;
+  color: white;
+  padding: 1.1rem 2.8rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(248, 120, 15, 0.4);
+  transition: all 0.4s;
+}
+
+.cta-section__btn:hover {
+  background: #E66F0D;
+  transform: translateY(-4px);
+  box-shadow: 0 15px 40px rgba(248, 120, 15, 0.6);
+}
+
+/* FAQ Section – 3D Card Magic */
+.faq-section {
+  padding: 6rem 2rem;
+  background: linear-gradient(135deg, #FAFAFA 0%, #FFFFFF 100%);
+}
+
+.faq-section__container {
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.faq-section__title {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #4E443C;
+  margin-bottom: 1rem;
+}
+
+.faq-section__subtitle {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 4rem;
+}
+
+.faq-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+}
+
+.faq-card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  transform: translateY(0) rotateX(0);
+  border: 1px solid #eee;
+}
+
+.faq-card:hover {
+  transform: translateY(-10px) rotateX(5deg);
+  box-shadow: 0 25px 50px rgba(248, 120, 15, 0.15);
+}
+
+.faq-card--open {
+  transform: translateY(-5px) rotateX(2deg);
+  box-shadow: 0 30px 60px rgba(248, 120, 15, 0.2);
+}
+
+.faq-card__header {
+  padding: 2rem 2rem 1.5rem;
+  background: linear-gradient(135deg, #4E443C, #6B5E52);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.faq-card__question {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: left;
+  flex: 1;
+}
+
+.faq-card__toggle {
+  font-size: 2rem;
+  font-weight: 300;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.faq-card--open .faq-card__toggle {
+  background: #F8780F;
+}
+
+.faq-card__answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.6s ease, padding 0.6s ease;
+  background: white;
+}
+
+.faq-card--open .faq-card__answer {
+  max-height: 300px;
+  padding: 2rem;
+}
+
+.faq-card__answer p {
+  margin: 0;
+  color: #444;
+  line-height: 1.7;
+  font-size: 1.02rem;
+}
+
+/* Latest News – Minimal */
+.latest-news {
+  padding: 5rem 2rem;
+  background: white;
+}
+
+.latest-news__container {
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.latest-news__title {
+  font-size: 2.5rem;
+  color: #4E443C;
+  margin-bottom: 3rem;
+}
+
+.latest-news__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 3rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.latest-news__card {
+  background: #FAFAFA;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.4s;
+}
+
+.latest-news__card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.latest-news__date {
+  background: #F8780F;
+  color: white;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.latest-news__day {
+  font-size: 2.5rem;
+  font-weight: 800;
+  display: block;
+}
+
+.latest-news__month {
+  font-size: 1rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.latest-news__content {
+  padding: 2rem;
+  text-align: left;
+}
+
+.latest-news__heading {
+  font-size: 1.4rem;
+  color: #4E443C;
+  margin: 0 0 1rem;
+}
+
+.latest-news__excerpt {
+  color: #666;
+  line-height: 1.6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .faq-grid {
+    grid-template-columns: 1fr;
+  }
+  .faq-card__header {
+    padding: 1.5rem;
+  }
+  .faq-card__question {
+    font-size: 1.15rem;
+  }
+}
