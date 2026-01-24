@@ -1,6 +1,5 @@
 from django.contrib import admin
 from .models import AnalyticsRun
-from apps.parametric_generator.models import GeneratedModel
 
 @admin.register(AnalyticsRun)
 class AnalyticsRunAdmin(admin.ModelAdmin):

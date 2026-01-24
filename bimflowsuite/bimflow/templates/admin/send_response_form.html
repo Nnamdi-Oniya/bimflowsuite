@@ -1,0 +1,49 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Send Response to {{ submission.firstname }} {{ submission.lastname }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>Send Response to {{ submission.firstname }} {{ submission.lastname }}</h1>
+  
+  <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>Request Details</h3>
+    <p><strong>Request Type:</strong> {{ submission.get_request_type_display }}</p>
+    <p><strong>Email:</strong> {{ submission.email }}</p>
+    <p><strong>Company:</strong> {{ submission.company_name }}</p>
+    <p><strong>Submitted:</strong> {{ submission.created_at }}</p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    
+    <fieldset class="module aligned">
+      <h2>Compose Response</h2>
+      
+      <div class="form-row">
+        <div>
+          <label for="admin_response">Your Response Message:</label>
+          <textarea 
+            name="admin_response" 
+            id="admin_response" 
+            rows="10" 
+            cols="100"
+            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
+            placeholder="Write your response message here. This will be sent directly to the user."
+            required
+          ></textarea>
+          <p style="color: #666; font-size: 12px; margin-top: 5px;">
+            💡 Tip: Write a professional response that addresses the user's request. The message will be sent to {{ submission.email }}
+          </p>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="submit-row">
+      <a href="/admin/intent_capture/requestsubmission/{{ submission.id }}/change/" class="button">Cancel</a>
+      <button type="submit" class="button default" name="_save">Send Response to User</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

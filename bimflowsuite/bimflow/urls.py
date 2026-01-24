@@ -2,9 +2,12 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import redirect, render  # FIXED: render for form
-from django.views import View
-from django.http import HttpResponseRedirect  # FIXED: For POST forward
+from django.shortcuts import redirect
+
+# Customize admin site
+admin.site.site_header = "BIMFlow Suite Admin"
+admin.site.site_title = "BIMFlow Suite"
+admin.site.index_title = "Welcome to BIMFlow Suite Administration"
 
 # REST Framework & JWT
 from rest_framework import permissions
@@ -17,24 +20,8 @@ from bimflow import schema
 # Swagger / ReDoc Documentation
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from drf_yasg.generators import OpenAPISchemaGenerator  # FIXED: Direct import (no swagger_settings)
+from drf_yasg.generators import OpenAPISchemaGenerator
 
-# -------------------------------------------------
-# 🔹 Dummy Login View (fixes Swagger redirect – Renders POST form)
-# -------------------------------------------------
-class DummyLoginView(View):
-    def get(self, request):
-        next_url = request.GET.get('next', '/swagger/')
-        return render(request, 'login.html', {'next': next_url})  # Renders form
-
-    def post(self, request):
-        # Forward POST to /api/token/ (no 405)
-        from django.http import HttpResponse
-        import requests
-        response = requests.post('http://127.0.0.1:8000/api/token/', json=request.POST)
-        if response.status_code == 200:
-            return HttpResponse(response.content, status=200)
-        return HttpResponse(response.content, status=response.status_code)
 
 # -------------------------------------------------
 # 🔹 API Documentation (Swagger + ReDoc)
@@ -42,45 +29,38 @@ class DummyLoginView(View):
 schema_view = get_schema_view(
     openapi.Info(
         title="BIMFlow Suite API",
-        default_version='v1',
-        description="Open-source BIM automation. Auth: Use /v1/auth/login/ in Swagger (editable form for username/password) → Get token → Paste 'Bearer <access>' in Authorize.",
+        default_version="v1",
+        description="Open-source BIM automation toolkit. Authenticate via /api/v1/auth/login/ to get JWT token, then use Authorize button in Swagger to test endpoints.",
         contact=openapi.Contact(email="support@bimflow.dev"),
         license=openapi.License(name="MIT License"),
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
-    generator_class=OpenAPISchemaGenerator,  # FIXED: Direct class (no AttributeError)
+    generator_class=OpenAPISchemaGenerator,
 )
 
 # -------------------------------------------------
 # 🔹 URL Patterns
 # -------------------------------------------------
 urlpatterns = [
-    # Root redirect to Swagger
-    path('', lambda request: redirect('swagger-ui'), name='home-redirect'),
-
-    # FIXED: Dummy /accounts/login/ (renders POST form to token – no 405)
-    path('accounts/login/', DummyLoginView.as_view(), name='dummy-login'),
-
+    # Root redirect to Swagger documentation
+    path("", lambda request: redirect("swagger-ui"), name="home-redirect"),
     # Django Admin
-    path('admin/', admin.site.urls),
-
-    # API Routes
-    path('api/v1/', include('apps.api.v1.urls')),
-
-    # REST Framework built-in
-    path('api-auth/', include('rest_framework.urls')),
-
-    # JWT Authentication
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
-    # GraphQL
-    path('graphql/', GraphQLView.as_view(graphiql=True, schema=schema)),
-
-    # Docs
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='redoc-ui'),
+    path("admin/", admin.site.urls),
+    # API Routes (v1)
+    path("api/v1/", include("apps.users.urls")),
+    # REST Framework built-in (for browsable API)
+    path("api-auth/", include("rest_framework.urls")),
+    # JWT Authentication endpoints
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    # GraphQL endpoint
+    path("graphql/", GraphQLView.as_view(graphiql=True, schema=schema)),
+    # API Documentation
+    path(
+        "swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"
+    ),
+    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="redoc-ui"),
 ]
 
 # Static & Media

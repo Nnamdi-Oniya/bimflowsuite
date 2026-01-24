@@ -1,12 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.parametric_generator import views  # Import ViewSet
+from .views import ProjectViewSet, GeneratedIFCViewSet
 
 router = DefaultRouter()
-router.register(r'generate/models', views.GeneratedModelViewSet)
+router.register(r"projects", ProjectViewSet, basename="project")
+router.register(r"ifcs", GeneratedIFCViewSet, basename="generated-ifc")
+
+app_name = "bim_projects"
 
 urlpatterns = [
-    path('', include(router.urls)),
-    # Explicit for clarity (optional)
-    path('generate/models/generate/', views.GeneratedModelViewSet.as_view({'post': 'generate'})),
+    path("", include(router.urls)),
 ]

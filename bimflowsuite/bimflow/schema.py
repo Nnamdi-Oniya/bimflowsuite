@@ -1,64 +1,59 @@
 import graphene
 from graphene_django import DjangoObjectType
-from apps.intent_capture.models import IntentCapture, ProgramSpec
-from apps.parametric_generator.models import GeneratedModel, AssetType
+from apps.parametric_generator.models import Project, GeneratedIFC
 from apps.compliance_engine.models import ComplianceCheck, RulePack
 from apps.analytics.models import AnalyticsRun
 
-class IntentCaptureType(DjangoObjectType):
-    class Meta:
-        model = IntentCapture
-        fields = '__all__'
 
-class ProgramSpecType(DjangoObjectType):
+class ProjectType(DjangoObjectType):
     class Meta:
-        model = ProgramSpec
-        fields = '__all__'
+        model = Project
+        fields = "__all__"
 
-class AssetTypeType(DjangoObjectType):
-    class Meta:
-        model = AssetType
-        fields = '__all__'
 
-class GeneratedModelType(DjangoObjectType):
+class GeneratedIFCType(DjangoObjectType):
     class Meta:
-        model = GeneratedModel
-        fields = '__all__'
+        model = GeneratedIFC
+        fields = "__all__"
+
 
 class ComplianceCheckType(DjangoObjectType):
     class Meta:
         model = ComplianceCheck
-        fields = '__all__'
+        fields = "__all__"
+
 
 class RulePackType(DjangoObjectType):
     class Meta:
         model = RulePack
-        fields = '__all__'
+        fields = "__all__"
+
 
 class AnalyticsRunType(DjangoObjectType):
     class Meta:
         model = AnalyticsRun
-        fields = '__all__'
+        fields = "__all__"
+
 
 class Query(graphene.ObjectType):
-    all_intents = graphene.List(IntentCaptureType)
-    intent_by_id = graphene.Field(IntentCaptureType, id=graphene.Int())
-    all_specs = graphene.List(ProgramSpecType)
-    all_generated_models = graphene.List(GeneratedModelType)
+    all_projects = graphene.List(ProjectType)
+    project_by_id = graphene.Field(ProjectType, id=graphene.Int())
+    all_generated_ifcs = graphene.List(GeneratedIFCType)
+    generated_ifc_by_id = graphene.Field(GeneratedIFCType, id=graphene.Int())
     all_compliance_checks = graphene.List(ComplianceCheckType)
     all_analytics_runs = graphene.List(AnalyticsRunType)
 
-    def resolve_all_intents(root, info):
-        return IntentCapture.objects.all()
+    def resolve_all_projects(root, info):
+        return Project.objects.all()
 
-    def resolve_intent_by_id(root, info, id):
-        return IntentCapture.objects.filter(id=id).first()
+    def resolve_project_by_id(root, info, id):
+        return Project.objects.filter(id=id).first()
 
-    def resolve_all_specs(root, info):
-        return ProgramSpec.objects.all()
+    def resolve_all_generated_ifcs(root, info):
+        return GeneratedIFC.objects.all()
 
-    def resolve_all_generated_models(root, info):
-        return GeneratedModel.objects.all()
+    def resolve_generated_ifc_by_id(root, info, id):
+        return GeneratedIFC.objects.filter(id=id).first()
 
     def resolve_all_compliance_checks(root, info):
         return ComplianceCheck.objects.all()
@@ -66,17 +61,34 @@ class Query(graphene.ObjectType):
     def resolve_all_analytics_runs(root, info):
         return AnalyticsRun.objects.all()
 
-class Mutation(graphene.ObjectType):
-    process_intent = graphene.Field(ProgramSpecType, intent_id=graphene.Int())
 
-    def mutate_process_intent(root, info, intent_id):
-        intent = IntentCapture.objects.get(id=intent_id)
-        if intent.status == 'processed':
-            raise Exception("Already processed")
-        spec_data = {"floors": 3, "width": 20, "height": 10}  # LLM stub
-        spec = ProgramSpec.objects.create(intent=intent, json_spec=spec_data)
-        intent.status = 'processed'
-        intent.save()
-        return spec
+class Mutation(graphene.ObjectType):
+    create_project = graphene.Field(
+        ProjectType,
+        name=graphene.String(required=True),
+        project_number=graphene.String(required=True),
+    )
+    generate_ifc = graphene.Field(
+        GeneratedIFCType,
+        project_id=graphene.Int(required=True),
+        asset_type=graphene.String(required=True),
+    )
+
+    def mutate_create_project(root, info, name, project_number):
+        project = Project.objects.create(
+            name=name,
+            project_number=project_number,
+            user=info.context.user,
+            status="concept",
+        )
+        return project
+
+    def mutate_generate_ifc(root, info, project_id, asset_type):
+        project = Project.objects.get(id=project_id)
+        ifc = GeneratedIFC.objects.create(
+            project=project, asset_type=asset_type, status="pending"
+        )
+        return ifc
+
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

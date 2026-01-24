@@ -1,137 +1,344 @@
 from django.db import models
+from django.contrib.auth.models import User
 from django.utils import timezone
-from apps.intent_capture.models import ProgramSpec  # Safe import (no circular)
-from django.contrib.auth.models import User  # For ownership
-from django.core.files.base import ContentFile
-import base64
-
-class AssetType(models.Model):
-    """
-    Modern and scalable asset type registry.
-    Stores all BIM assets dynamically.
-    """
-    code = models.CharField(max_length=50, unique=True)
-    name = models.CharField(max_length=100)
-    category = models.CharField(max_length=100, blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-
-    class Meta:
-        verbose_name = "Asset Type"
-        verbose_name_plural = "Asset Types"
-
-    def __str__(self):
-        return self.name
-
-    @staticmethod
-    def load_default_assets():
-        ASSET_TYPES = [
-            ('building', 'Building'),
-            ('bridge', 'Bridge'),
-            ('road', 'Road'),
-            ('highrise', 'Highrise'),
-            ('tunnel', 'Tunnel'),
-            ('railway', 'Railway'),
-            ('metro_station', 'Metro Station'),
-            ('airport_terminal', 'Airport Terminal'),
-            ('solar_farm', 'Solar Farm'),
-            ('wind_turbine', 'Wind Turbine'),
-            ('data_center', 'Data Center'),
-            ('smart_home', 'Smart Home'),
-            ('industrial_plant', 'Industrial Plant'),
-            ('hospital', 'Hospital'),
-            ('school', 'School / University'),
-            ('stadium', 'Stadium / Arena'),
-            ('water_treatment', 'Water Treatment Plant'),
-            ('dam', 'Dam'),
-            ('harbor', 'Harbor / Port Facility'),
-            ('urban_park', 'Urban Park / Landscape'),
-            ('charging_station', 'EV Charging Station'),
-            ('smart_tower', 'Smart Communication Tower'),
-        ]
-
-        for code, name in ASSET_TYPES:
-            AssetType.objects.get_or_create(code=code, defaults={'name': name})
+from apps.users.models import Organization
 
 
-class GeneratedModel(models.Model):
-    """
-    Represents a generated IFC model linked to a ProgramSpec (from Intent Capture).
-    """
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('generating', 'Generating'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
+class Project(models.Model):
+    """Comprehensive BIM Project with detailed metadata"""
+
+    # Project Status Choices
+    PROJECT_STATUS_CHOICES = [
+        ("concept", "Concept"),
+        ("schematic", "Schematic"),
+        ("detailed", "Detailed Design"),
+        ("as-built", "As-Built"),
     ]
 
-    program_spec = models.ForeignKey(ProgramSpec, on_delete=models.CASCADE, related_name='generated_models')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='generated_models')  # Ownership for PRD security
-    asset_type = models.ForeignKey(
-        AssetType, on_delete=models.SET_NULL, null=True, blank=True
+    # Building Type Choices
+    BUILDING_TYPE_CHOICES = [
+        ("residential", "Residential"),
+        ("office", "Office"),
+        ("hospital", "Hospital"),
+        ("educational", "Educational"),
+        ("retail", "Retail"),
+        ("industrial", "Industrial"),
+        ("mixed-use", "Mixed-Use"),
+        ("other", "Other"),
+    ]
+
+    # Unit Choices
+    LENGTH_UNIT_CHOICES = [("mm", "Millimeters"), ("m", "Meters")]
+    AREA_UNIT_CHOICES = [("m2", "Square Meters"), ("mm2", "Square Millimeters")]
+    VOLUME_UNIT_CHOICES = [("m3", "Cubic Meters"), ("mm3", "Cubic Millimeters")]
+    ANGLE_UNIT_CHOICES = [("degree", "Degrees"), ("radian", "Radians")]
+
+    # IFC Schema Choices
+    IFC_SCHEMA_CHOICES = [
+        ("ifc2x3", "IFC2x3"),
+        ("ifc4", "IFC4"),
+        ("ifc4x3", "IFC4x3"),
+    ]
+
+    # CRS (Coordinate Reference System) Choices
+    CRS_CHOICES = [
+        ("epsg:4326", "WGS 84 (EPSG:4326)"),
+        ("epsg:3857", "Web Mercator (EPSG:3857)"),
+        ("epsg:3395", "World Mercator (EPSG:3395)"),
+        ("local", "Local Coordinate System"),
+        ("custom", "Custom CRS"),
+    ]
+
+    # ==================== BASIC INFORMATION ====================
+    # Organization-based access
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="projects",
+        help_text="Organization that owns this project",
+    )
+    # Keep user for backward compatibility and to track project creator
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="created_projects",
+        help_text="User who created the project",
+    )
+
+    name = models.CharField(max_length=255, help_text="Project name")
+    description = models.TextField(
+        blank=True, null=True, help_text="Project description"
+    )
+    project_number = models.CharField(
+        max_length=100, unique=True, help_text="Project number/ID"
     )
     status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='pending'
+        max_length=20,
+        choices=PROJECT_STATUS_CHOICES,
+        default="concept",
+        help_text="Project stage",
     )
 
-    ifc_file = models.FileField(upload_to='ifc_models/%Y/%m/%d/', blank=True, null=True)
-    ifc_content = models.TextField(blank=True, null=True)  # Base64 fallback
+    # ==================== CLIENT/OWNER ====================
+    client_name = models.CharField(
+        max_length=255, blank=True, null=True, help_text="Client/Owner name"
+    )
 
-    # REMOVED scenario_version FK (future—no table error)
+    # ==================== LOCATION INFORMATION ====================
+    country = models.CharField(max_length=100, blank=True, null=True)
+    city_address = models.CharField(max_length=255, blank=True, null=True)
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, blank=True, null=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, blank=True, null=True
+    )
+    elevation_above_sea = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Elevation in meters",
+    )
+    coordinate_reference_system = models.CharField(
+        max_length=50,
+        choices=CRS_CHOICES,
+        default="epsg:4326",
+        help_text="Coordinate Reference System",
+    )
+    true_north = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="True north in degrees",
+    )
+    project_north_angle = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Project north angle in degrees",
+    )
+
+    # ==================== BUILDING INFORMATION ====================
+    building_type = models.CharField(
+        max_length=50,
+        choices=BUILDING_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Building type/category",
+    )
+
+    # ==================== UNITS & PRECISION ====================
+    length_unit = models.CharField(
+        max_length=10, choices=LENGTH_UNIT_CHOICES, default="m"
+    )
+    area_unit = models.CharField(max_length=10, choices=AREA_UNIT_CHOICES, default="m2")
+    volume_unit = models.CharField(
+        max_length=10, choices=VOLUME_UNIT_CHOICES, default="m3"
+    )
+    angle_unit = models.CharField(
+        max_length=20, choices=ANGLE_UNIT_CHOICES, default="degree"
+    )
+    precision = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0.0001,
+        help_text="Geometric precision tolerance",
+    )
+
+    # ==================== IFC CONFIGURATION ====================
+    ifc_schema_version = models.CharField(
+        max_length=20, choices=IFC_SCHEMA_CHOICES, default="ifc4x3"
+    )
+
+    # ==================== ENVIRONMENTAL/DESIGN ====================
+    climate_zone = models.CharField(
+        max_length=100, blank=True, null=True, help_text="Climate zone classification"
+    )
+    design_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Design temperature in Celsius",
+    )
+    design_target = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Design performance target or goals",
+    )
+
+    # ==================== MATERIALS (JSON) ====================
+    materials = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Material specifications: walls, slabs, layers",
+    )
+    # Example structure:
+    # {
+    #   "walls": {
+    #     "exterior": {
+    #       "layers": [
+    #         {"name": "Brick", "thickness": 0.12, "thermal_conductivity": 0.6},
+    #         {"name": "Insulation", "thickness": 0.1, "thermal_conductivity": 0.04}
+    #       ],
+    #       "fire_rating": "A1",
+    #       "thermal_properties": {"u_value": 0.25}
+    #     }
+    #   },
+    #   "slabs": {...}
+    # }
+
+    # ==================== AUTHORING & APPROVAL ====================
+    authoring_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name of project author/creator",
+    )
+    authoring_company = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Company that authored the project",
+    )
+    approval_status = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="e.g., Pending, Approved, Rejected",
+    )
+    revision_id = models.CharField(
+        max_length=50, blank=True, null=True, help_text="Current revision identifier"
+    )
+    change_description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Description of changes in this revision",
+    )
+
+    # ==================== METADATA ====================
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    error_message = models.TextField(blank=True, null=True)
 
     class Meta:
-        verbose_name = "Generated Model"
-        verbose_name_plural = "Generated Models"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["project_number"]),
+            models.Index(fields=["status"]),
+        ]
 
     def __str__(self):
-        asset_name = self.asset_type.name if self.asset_type else "Unknown"
-        intent_text = (
-            self.program_spec.intent.intent_text[:30]
-            if hasattr(self.program_spec, 'intent')
-            else "No Intent"
-        )
-        return f"{asset_name} model from {intent_text} (User: {self.user.username})"
-
-    def save_ifc_from_base64(self, base64_data: str, filename: str = "model.ifc"):
-        try:
-            decoded_file = base64.b64decode(base64_data)
-            self.ifc_file.save(filename, ContentFile(decoded_file), save=True)
-            self.ifc_content = base64_data
-            self.status = 'completed'
-            self.save()
-        except Exception as e:
-            self.status = 'failed'
-            self.error_message = str(e)
-            self.save()
+        return f"{self.name} ({self.project_number})"
 
 
-class GenerationTask(models.Model):
-    model = models.ForeignKey(GeneratedModel, on_delete=models.CASCADE, related_name='tasks')
-    task_id = models.CharField(max_length=255, unique=True)
-    status = models.CharField(max_length=50, default='pending')
-    result = models.JSONField(default=dict, blank=True, null=True)
-    started_at = models.DateTimeField(default=timezone.now)
-    completed_at = models.DateTimeField(blank=True, null=True)
+class GeneratedIFC(models.Model):
+    """IFC files generated from project specifications"""
+
+    ASSET_TYPE_CHOICES = [
+        # Buildings
+        ("building", "Building"),
+        ("residential", "Residential Building"),
+        ("commercial", "Commercial Building"),
+        ("industrial", "Industrial Building"),
+        ("institutional", "Institutional Building"),
+        # Infrastructure
+        ("road", "Road"),
+        ("highway", "Highway"),
+        ("bridge", "Bridge"),
+        ("tunnel", "Tunnel"),
+        ("railway", "Railway/Track"),
+        ("parking", "Parking Structure"),
+        # Utilities & Networks
+        ("utility_network", "Utility Network"),
+        ("power_line", "Power Line"),
+        ("pipeline", "Pipeline"),
+        ("water_system", "Water System"),
+        ("drainage", "Drainage System"),
+        # Site & Landscape
+        ("site", "Site/Lot"),
+        ("landscape", "Landscape"),
+        ("plaza", "Plaza/Court"),
+        ("park", "Park"),
+        # Specialized
+        ("airport", "Airport"),
+        ("seaport", "Seaport"),
+        ("dam", "Dam"),
+        ("solar_farm", "Solar Farm"),
+        ("wind_farm", "Wind Farm"),
+        # Building Systems (MEP)
+        ("hvac_system", "HVAC System"),
+        ("electrical_system", "Electrical System"),
+        ("plumbing_system", "Plumbing System"),
+        ("fire_safety", "Fire Safety System"),
+        # Other
+        ("other", "Other"),
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("generating", "Generating"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    # ==================== IDENTIFICATION ====================
+    id = models.AutoField(primary_key=True, help_text="Unique IFC record ID")
+    name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name/label for this generated IFC",
+    )
+
+    # ==================== REFERENCES & CONFIGURATION ====================
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="generated_ifcs"
+    )
+    asset_type = models.CharField(max_length=50, choices=ASSET_TYPE_CHOICES)
+    ifc_schema_version = models.CharField(
+        max_length=20,
+        choices=Project.IFC_SCHEMA_CHOICES,
+        help_text="IFC schema version used for generation",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+
+    # Specifications captured from form input
+    specifications = models.JSONField(
+        default=dict,
+        help_text="User-provided specifications for this asset",
+    )
+
+    # File Storage
+    ifc_file = models.FileField(
+        upload_to="ifc_files/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        help_text="Generated IFC file (supports S3 or local storage)",
+    )
+    file_size = models.BigIntegerField(default=0, help_text="File size in bytes")
+
+    # Error Tracking
+    error_message = models.TextField(
+        blank=True, null=True, help_text="Error message if generation failed"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(
+        blank=True, null=True, help_text="When generation completed"
+    )
 
     class Meta:
-        verbose_name = "Generation Task"
-        verbose_name_plural = "Generation Tasks"
-        ordering = ['-started_at']
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["asset_type"]),
+        ]
 
     def __str__(self):
-        return f"Task {self.task_id} for model {self.model.id}"
-
-    def mark_completed(self, result_data=None):
-        self.status = 'completed'
-        self.result = result_data or {}
-        self.completed_at = timezone.now()
-        self.save()
-
-    def mark_failed(self, error_message):
-        self.status = 'failed'
-        self.result = {'error': error_message}
-        self.completed_at = timezone.now()
-        self.save()
+        name = self.name or f"{self.project.name} - {self.get_asset_type_display()}"
+        return name
