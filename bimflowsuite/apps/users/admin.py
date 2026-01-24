@@ -4,7 +4,7 @@ from django.urls import path, reverse
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from .models import RequestSubmission, Organization, OrganizationMember
-from apps.utils import (
+from bimflowsuite.apps.common.utils import (
     send_admin_notification,
     create_onboarding_user,
     send_onboarding_email,
@@ -126,7 +126,7 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         count = 0
         for submission in queryset.filter(email_sent=False):
             # Send admin notification email
-            from apps.utils import format_submission_email
+            from bimflowsuite.apps.common.utils import format_submission_email
 
             data = {
                 "firstname": submission.firstname,

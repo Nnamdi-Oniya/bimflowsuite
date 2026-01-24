@@ -1,0 +1,206 @@
+rules:
+  # General Requirements
+  - name: "Material Specifications Defined"
+    description: "All materials must have specifications defined"
+    category: "general"
+    severity: "critical"
+    condition: "material_specs_defined == true"
+  
+  - name: "Structural System Defined"
+    description: "Primary structural system must be identified"
+    category: "structural"
+    severity: "critical"
+    condition: "structural_system_identified == true"
+
+  # Structural Load Requirements
+  - name: "Dead Load Documentation"
+    description: "All dead loads must be documented and summed"
+    category: "structural"
+    severity: "high"
+    condition: "dead_load_documented == true"
+  
+  - name: "Live Load Requirements"
+    description: "Design live loads must be appropriate for use case"
+    category: "structural"
+    severity: "critical"
+    condition: "live_load_defined == true AND live_load_reasonable == true"
+  
+  - name: "Environmental Load Consideration"
+    description: "Wind, seismic, and snow loads must be considered"
+    category: "structural"
+    severity: "critical"
+    condition: "environmental_loads_evaluated == true"
+
+  # Foundation & Soils
+  - name: "Geotechnical Investigation"
+    description: "Site geotechnical investigation completed"
+    category: "structural"
+    severity: "critical"
+    condition: "geo_investigation_completed == true"
+  
+  - name: "Bearing Capacity"
+    description: "Foundation bearing capacity calculated and adequate"
+    category: "structural"
+    severity: "critical"
+    condition: "bearing_capacity_calculated == true AND bearing_capacity_adequate == true"
+
+  # Connections & Details
+  - name: "Connection Design"
+    description: "All major connections must be designed"
+    category: "structural"
+    severity: "critical"
+    condition: "connections_designed == true"
+  
+  - name: "Detailing Standards"
+    description: "Construction details must follow accepted standards"
+    category: "structural"
+    severity: "high"
+    condition: "detailing_standard_applied == true"
+
+  # Materials
+  - name: "Concrete Quality"
+    description: "Concrete specifications include strength, durability, and air content"
+    category: "materials"
+    severity: "high"
+    condition: "concrete_specs_complete == true"
+  
+  - name: "Steel Quality"
+    description: "Steel specifications include grade, shape, and finish"
+    category: "materials"
+    severity: "high"
+    condition: "steel_specs_complete == true"
+
+  # Safety Features
+  - name: "Guardrails & Barriers"
+    description: "Guardrails required on elevated surfaces per standards"
+    category: "safety"
+    severity: "high"
+    condition: "guardrails_specified == true"
+  
+  - name: "Fall Protection"
+    description: "Fall protection system for construction activities"
+    category: "safety"
+    severity: "critical"
+    condition: "fall_protection_plan_exists == true"
+
+  # Accessibility
+  - name: "Accessible Routes"
+    description: "At least one accessible route to all public areas"
+    category: "accessibility"
+    severity: "high"
+    condition: "accessible_routes_provided == true"
+  
+  - name: "Accessible Parking"
+    description: "Accessible parking spaces provided per standards"
+    category: "accessibility"
+    severity: "high"
+    condition: "accessible_parking_provided == true"
+
+  # Mechanical/Electrical/Plumbing (MEP)
+  - name: "Electrical Load Calculation"
+    description: "Electrical loads calculated for all systems"
+    category: "utilities"
+    severity: "high"
+    condition: "electrical_load_calculated == true"
+  
+  - name: "HVAC Design"
+    description: "HVAC system capacity and distribution designed"
+    category: "utilities"
+    severity: "high"
+    condition: "hvac_design_complete == true"
+  
+  - name: "Plumbing Sizing"
+    description: "Water supply and waste piping sized appropriately"
+    category: "utilities"
+    severity: "high"
+    condition: "plumbing_sizing_complete == true"
+
+  # Energy Efficiency
+  - name: "Energy Efficiency Assessment"
+    description: "Building energy performance assessed"
+    category: "energy"
+    severity: "medium"
+    condition: "energy_assessment_performed == true"
+  
+  - name: "Renewable Energy Consideration"
+    description: "Feasibility of renewable energy systems evaluated"
+    category: "energy"
+    severity: "medium"
+    condition: "renewable_energy_evaluated == true"
+
+  # Environmental
+  - name: "Environmental Compliance"
+    description: "Environmental regulations reviewed and compliance verified"
+    category: "environmental"
+    severity: "high"
+    condition: "environmental_compliance_verified == true"
+  
+  - name: "Site Remediation"
+    description: "Any required site remediation documented"
+    category: "environmental"
+    severity: "medium"
+    condition: "site_remediation_status_documented == true"
+
+  # Schedule & Resources
+  - name: "Project Schedule"
+    description: "Detailed project schedule prepared"
+    category: "planning"
+    severity: "medium"
+    condition: "project_schedule_prepared == true"
+  
+  - name: "Resource Plan"
+    description: "Labor, equipment, and material resources identified"
+    category: "planning"
+    severity: "medium"
+    condition: "resource_plan_complete == true"
+
+  # Quality & Testing
+  - name: "Quality Control Plan"
+    description: "QC/QA plan established for construction"
+    category: "quality"
+    severity: "high"
+    condition: "qc_plan_established == true"
+  
+  - name: "Testing Requirements"
+    description: "Required material and system testing specified"
+    category: "quality"
+    severity: "high"
+    condition: "testing_requirements_defined == true"
+
+  # Compliance & Permits
+  - name: "Permitting Status"
+    description: "All required permits obtained"
+    category: "compliance"
+    severity: "critical"
+    condition: "permits_obtained == true"
+  
+  - name: "Code Compliance Review"
+    description: "Design reviewed for applicable building codes"
+    category: "compliance"
+    severity: "critical"
+    condition: "code_review_completed == true AND code_compliant == true"
+  
+  - name: "ADA Compliance"
+    description: "Design complies with ADA requirements"
+    category: "compliance"
+    severity: "critical"
+    condition: "ada_compliant == true"
+
+  # Documentation
+  - name: "Drawing Set Completeness"
+    description: "All required construction drawings included"
+    category: "documentation"
+    severity: "high"
+    condition: "drawing_set_complete == true"
+  
+  - name: "Specification Completeness"
+    description: "Complete specifications for all systems"
+    category: "documentation"
+    severity: "high"
+    condition: "specifications_complete == true"
+  
+  - name: "As-Built Documentation"
+    description: "As-built records to be provided upon completion"
+    category: "documentation"
+    severity: "medium"
+    condition: "asbuilt_documentation_planned == true"
