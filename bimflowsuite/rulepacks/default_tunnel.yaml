@@ -1,0 +1,256 @@
+rules:
+  # Tunnel Bore & Alignment
+  - name: "Tunnel Diameter Clearance"
+    description: "Tunnel bore must accommodate design vehicle/train with minimum 0.3m clearance"
+    category: "geometric"
+    severity: "critical"
+    condition: "tunnel_clearance >= 0.3"
+    unit: "meters"
+  
+  - name: "Grade Alignment"
+    description: "Maximum grade through tunnel 4% for vehicles, 2% for trains"
+    category: "geometric"
+    severity: "critical"
+    condition: "tunnel_grade <= 0.04"
+  
+  - name: "Horizontal Curve Radius"
+    description: "Minimum curve radius 300m for tunnels (design speed 80 km/h)"
+    category: "geometric"
+    severity: "critical"
+    condition: "curve_radius >= 300"
+    unit: "meters"
+
+  # Structural Stability
+  - name: "Ground Stability Assessment"
+    description: "Geotechnical investigation must define tunnel support requirements"
+    category: "structural"
+    severity: "critical"
+    condition: "geotechnical_study_completed == true AND ground_class_defined == true"
+  
+  - name: "Support System Design"
+    description: "Tunnel support system must be designed for ground classification"
+    category: "structural"
+    severity: "critical"
+    condition: "support_system_designed == true AND support_class_adequate == true"
+  
+  - name: "Lining Material Strength"
+    description: "Concrete lining minimum strength 40 MPa"
+    category: "materials"
+    severity: "critical"
+    condition: "lining_concrete_strength >= 40"
+    unit: "MPa"
+  
+  - name: "Lining Thickness"
+    description: "Concrete lining minimum 300mm, varies by ground classification"
+    category: "structural"
+    severity: "critical"
+    condition: "lining_thickness >= 0.3"
+    unit: "meters"
+
+  # Ventilation (Critical for Safety)
+  - name: "Ventilation Coverage"
+    description: "Ventilation system must cover 100% of tunnel length"
+    category: "safety"
+    severity: "critical"
+    condition: "ventilation_coverage >= 1.0"
+  
+  - name: "Air Quality Monitoring"
+    description: "Continuous CO monitoring with threshold 100 ppm"
+    category: "safety"
+    severity: "critical"
+    condition: "co_monitoring_installed == true AND co_threshold <= 100"
+    unit: "ppm"
+  
+  - name: "Emergency Ventilation"
+    description: "Emergency ventilation must activate within 5 minutes"
+    category: "safety"
+    severity: "critical"
+    condition: "emergency_vent_response_time <= 5"
+    unit: "minutes"
+
+  # Lighting
+  - name: "Tunnel Lighting Level"
+    description: "Minimum average lighting 30 lux in tunnel"
+    category: "safety"
+    severity: "critical"
+    condition: "tunnel_lighting_avg >= 30"
+    unit: "lux"
+  
+  - name: "Portal Lighting Transition"
+    description: "Portal lighting must facilitate eye adaptation (gradual transition)"
+    category: "safety"
+    severity: "high"
+    condition: "portal_lighting_gradient == true"
+  
+  - name: "Emergency Lighting"
+    description: "Emergency lighting every 25m with 24-hour autonomy"
+    category: "safety"
+    severity: "critical"
+    condition: "emergency_light_spacing <= 25 AND battery_autonomy >= 24"
+    unit: "hours"
+
+  # Fire Safety
+  - name: "Fire Detection System"
+    description: "Automatic fire detection throughout tunnel with response < 1 minute"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "fire_detection_coverage >= 1.0 AND detection_response_time <= 1"
+    unit: "minutes"
+  
+  - name: "Fire Suppression"
+    description: "Tunnel must have automatic fire suppression (sprinkler or foam)"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "fire_suppression_system_installed == true"
+  
+  - name: "Emergency Exit Spacing"
+    description: "Emergency exits or niches maximum 250m apart"
+    category: "safety"
+    severity: "critical"
+    condition: "emergency_exit_spacing <= 250"
+    unit: "meters"
+  
+  - name: "Fire-Rated Linings"
+    description: "Interior finishes minimum 1-hour fire rating"
+    category: "fire_safety"
+    severity: "critical"
+    condition: "lining_fire_rating >= 60"
+    unit: "minutes"
+
+  # Water Management
+  - name: "Groundwater Control"
+    description: "Groundwater seepage rate < 1 liter/min per 100m of tunnel"
+    category: "drainage"
+    severity: "high"
+    condition: "seepage_rate <= 1.0"
+    unit: "liters/minute per 100m"
+  
+  - name: "Drainage System"
+    description: "Continuous drainage channel with minimum 50mm depth"
+    category: "drainage"
+    severity: "high"
+    condition: "drainage_depth >= 0.05"
+    unit: "meters"
+  
+  - name: "Sump Pump Capacity"
+    description: "Sump pump rated for 1.5x design flow"
+    category: "drainage"
+    severity: "high"
+    condition: "pump_capacity_factor >= 1.5"
+
+  # Emergency Features
+  - name: "Refuge Niches"
+    description: "Refuge niches minimum 2.5m x 2.0m x 2.5m high every 250m"
+    category: "safety"
+    severity: "critical"
+    condition: "refuge_niche_spacing <= 250 AND niche_dimensions_adequate == true"
+    unit: "meters"
+  
+  - name: "Emergency Communication"
+    description: "Emergency phone system every 100m with visual display"
+    category: "safety"
+    severity: "critical"
+    condition: "emergency_phone_spacing <= 100 AND communication_visual == true"
+    unit: "meters"
+  
+  - name: "Emergency Exit Signs"
+    description: "Exit signs illuminated and visible from 10m distance"
+    category: "safety"
+    severity: "critical"
+    condition: "exit_sign_spacing <= 25 AND sign_visibility >= 10"
+    unit: "meters"
+
+  # Traffic Management
+  - name: "Lane Width - Tunnel"
+    description: "Traffic lanes minimum 3.5m width"
+    category: "geometric"
+    severity: "critical"
+    condition: "lane_width >= 3.5"
+    unit: "meters"
+  
+  - name: "Truck Clearance"
+    description: "Overhead clearance minimum 4.2m for vehicle tunnels"
+    category: "geometric"
+    severity: "critical"
+    condition: "overhead_clearance >= 4.2"
+    unit: "meters"
+  
+  - name: "Speed Restriction Signage"
+    description: "Speed limit signs at tunnel entrance and periodic intervals"
+    category: "safety"
+    severity: "high"
+    condition: "speed_signage_installed == true"
+
+  # Maintenance Access
+  - name: "Maintenance Walkway"
+    description: "Maintenance walkway minimum 1.0m wide and clear"
+    category: "maintenance"
+    severity: "high"
+    condition: "maintenance_walkway_width >= 1.0"
+    unit: "meters"
+  
+  - name: "Equipment Access"
+    description: "Maintenance equipment access available at intervals"
+    category: "maintenance"
+    severity: "high"
+    condition: "equipment_access_available == true"
+
+  # Utilities
+  - name: "Electrical System Isolation"
+    description: "Electrical systems isolated from tunnel structure"
+    category: "utilities"
+    severity: "high"
+    condition: "electrical_isolation_adequate == true"
+  
+  - name: "Cable Management"
+    description: "All cables protected and clearly identified"
+    category: "utilities"
+    severity: "high"
+    condition: "cable_protection_complete == true"
+
+  # Monitoring Systems
+  - name: "Structural Health Monitoring"
+    description: "Structural monitoring system for deformation/settlement"
+    category: "monitoring"
+    severity: "high"
+    condition: "monitoring_system_installed == true"
+  
+  - name: "Data Logger Installation"
+    description: "Data loggers for continuous monitoring with daily uploads"
+    category: "monitoring"
+    severity: "high"
+    condition: "data_logging_enabled == true"
+
+  # Environmental
+  - name: "Noise Level Control"
+    description: "Interior noise < 85 dB(A) for passenger comfort"
+    category: "environmental"
+    severity: "medium"
+    condition: "noise_level <= 85"
+    unit: "dB(A)"
+  
+  - name: "Vibration Isolation"
+    description: "Vibration isolated equipment where needed"
+    category: "environmental"
+    severity: "medium"
+    condition: "vibration_isolation_designed == true"
+
+  # Compliance & Documentation
+  - name: "Tunnel Design Standard Compliance"
+    description: "Design complies with applicable tunnel standards (NCHRP, Euro-NTC, etc.)"
+    category: "compliance"
+    severity: "critical"
+    condition: "design_standard_compliance == true"
+  
+  - name: "Safety Documentation"
+    description: "Complete safety documentation and maintenance manual provided"
+    category: "compliance"
+    severity: "critical"
+    condition: "safety_documentation_complete == true AND manual_provided == true"
+  
+  - name: "Inspection Schedule"
+    description: "Regular inspection schedule established (monthly minimum)"
+    category: "compliance"
+    severity: "high"
+    condition: "inspection_schedule_frequency <= 30"
+    unit: "days"
