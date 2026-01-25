@@ -20,7 +20,7 @@ from .serializers import (
     OrganizationMemberSerializer,
 )
 from .models import Organization, OrganizationMember
-from bimflowsuite.apps.common.utils import send_request_notification
+from helper.utils import send_request_notification
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
