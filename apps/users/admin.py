@@ -4,7 +4,7 @@ from django.urls import path, reverse
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from .models import RequestSubmission, Organization, OrganizationMember
-from bimflowsuite.apps.common.utils import (
+from helper.utils import (
     send_admin_notification,
     create_onboarding_user,
     send_onboarding_email,
