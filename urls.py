@@ -15,7 +15,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 # GraphQL
 from graphene_django.views import GraphQLView
-from bimflowsuite import schema
+import schema
 
 # Swagger / ReDoc Documentation
 from drf_yasg.views import get_schema_view

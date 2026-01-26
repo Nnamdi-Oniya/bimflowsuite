@@ -61,7 +61,7 @@ MIDDLEWARE = [
 ]
 
 # URL configuration
-ROOT_URLCONF = "bimflow.urls"
+ROOT_URLCONF = "urls"
 
 # Templates
 TEMPLATES = [
@@ -81,8 +81,8 @@ TEMPLATES = [
 ]
 
 # WSGI & ASGI
-WSGI_APPLICATION = "bimflow.wsgi.application"
-ASGI_APPLICATION = "bimflow.asgi.application"
+WSGI_APPLICATION = "wsgi.application"
+ASGI_APPLICATION = "asgi.application"
 
 # Database (SQLite)
 DATABASES = {
@@ -111,7 +111,6 @@ USE_TZ = True
 # Static & media
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
