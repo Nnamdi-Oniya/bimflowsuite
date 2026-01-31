@@ -1,162 +1,210 @@
+/*
+    DJANGO Form Styles - Enhanced
+    Bold text, better spacing, no jumping elements
+*/
+
 @import url('widgets.css');
 
-/* FORM ROWS */
-
+/* FORM ROWS - Enhanced but stable */
 .form-row {
-    overflow: hidden;
-    padding: 10px;
-    font-size: 0.8125rem;
-    border-bottom: 1px solid var(--hairline-color);
+    overflow: hidden !important;
+    padding: 15px 20px !important;
+    font-size: 0.9375rem !important;
+    border-bottom: 1px solid var(--hairline-color) !important;
+    background: var(--body-bg) !important;
+    transition: background-color 0.15s ease !important;
+}
+
+.form-row:hover {
+    background: var(--darkened-bg) !important;
+}
+
+.form-row:focus-within {
+    background: var(--selected-bg) !important;
 }
 
 .form-row img, .form-row input {
-    vertical-align: middle;
+    vertical-align: middle !important;
 }
 
 .form-row label input[type="checkbox"] {
-    margin-top: 0;
-    vertical-align: 0;
+    margin-top: 0 !important;
+    vertical-align: -2px !important;
 }
 
 form .form-row p {
-    padding-left: 0;
+    padding-left: 0 !important;
+    font-size: 0.875rem !important;
+    color: var(--body-medium-color) !important;
+    font-weight: 500 !important;
+    margin: 5px 0 0 0 !important;
 }
 
+/* FLEX CONTAINERS */
 .flex-container {
-    display: flex;
+    display: flex !important;
+    gap: 15px !important;
 }
 
 .form-multiline {
-    flex-wrap: wrap;
+    flex-wrap: wrap !important;
 }
 
 .form-multiline > div {
-    padding-bottom: 10px;
+    padding-bottom: 12px !important;
+    flex: 1 1 250px !important;
 }
 
-/* FORM LABELS */
-
+/* FORM LABELS - BOLD & PROMINENT */
 label {
-    font-weight: normal;
-    color: var(--body-quiet-color);
-    font-size: 0.8125rem;
+    font-weight: 600 !important;
+    color: var(--body-medium-color) !important;
+    font-size: 0.9375rem !important;
+    margin-bottom: 6px !important;
+    display: block !important;
+    letter-spacing: 0.2px !important;
 }
 
 .required label, label.required {
-    font-weight: bold;
+    font-weight: 700 !important;
+    color: var(--body-loud-color) !important;
 }
 
-/* RADIO BUTTONS */
+.required label:after {
+    content: " *" !important;
+    color: var(--orange) !important;
+    font-weight: bold !important;
+}
 
+/* RADIO BUTTONS - Enhanced */
 form div.radiolist div {
-    padding-right: 7px;
+    padding-right: 12px !important;
+    margin-bottom: 6px !important;
 }
 
 form div.radiolist.inline div {
-    display: inline-block;
+    display: inline-block !important;
+    margin-right: 15px !important;
 }
 
 form div.radiolist label {
-    width: auto;
+    width: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    font-weight: 500 !important;
 }
 
 form div.radiolist input[type="radio"] {
-    margin: -2px 4px 0 0;
-    padding: 0;
+    margin: -2px 6px 0 0 !important;
+    padding: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+    accent-color: var(--orange) !important;
 }
 
 form ul.inline {
-    margin-left: 0;
-    padding: 0;
+    margin-left: 0 !important;
+    padding: 0 !important;
 }
 
 form ul.inline li {
-    float: left;
-    padding-right: 7px;
+    float: left !important;
+    padding-right: 7px !important;
 }
 
-/* FIELDSETS */
-
+/* FIELDSETS - Enhanced */
 fieldset .fieldset-heading,
 fieldset .inline-heading,
 :not(.inline-related) .collapse summary {
-    border: 1px solid var(--header-bg);
-    margin: 0;
-    padding: 8px;
-    font-weight: 400;
-    font-size: 0.8125rem;
-    background: var(--header-bg);
-    color: var(--header-link-color);
+    border: 1px solid var(--header-bg) !important;
+    margin: 0 0 20px 0 !important;
+    padding: 12px 15px !important;
+    font-weight: 600 !important;
+    font-size: 0.9375rem !important;
+    background: var(--header-bg) !important;
+    color: var(--header-link-color) !important;
+    border-radius: var(--border-radius) !important;
 }
 
-/* ALIGNED FIELDSETS */
-
+/* ALIGNED FIELDSETS - Enhanced */
 .aligned label {
-    display: block;
-    padding: 4px 10px 0 0;
-    min-width: 160px;
-    width: 160px;
-    word-wrap: break-word;
+    display: block !important;
+    padding: 6px 12px 0 0 !important;
+    min-width: 180px !important;
+    width: 180px !important;
+    word-wrap: break-word !important;
+    font-size: 0.9375rem !important;
+    font-weight: 600 !important;
+    float: left !important;
 }
 
 .aligned label:not(.vCheckboxLabel):after {
-    content: '';
-    display: inline-block;
-    vertical-align: middle;
+    content: '' !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
 }
 
 .aligned label + p, .aligned .checkbox-row + div.help, .aligned label + div.readonly {
-    padding: 6px 0;
-    margin-top: 0;
-    margin-bottom: 0;
-    margin-left: 0;
-    overflow-wrap: break-word;
+    padding: 8px 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    margin-left: 180px !important;
+    overflow-wrap: break-word !important;
+    font-size: 0.9375rem !important;
+    color: var(--body-medium-color) !important;
 }
 
 .aligned ul label {
-    display: inline;
-    float: none;
-    width: auto;
+    display: inline !important;
+    float: none !important;
+    width: auto !important;
 }
 
 .aligned .form-row input {
-    margin-bottom: 0;
+    margin-bottom: 0 !important;
 }
 
 .colMS .aligned .vLargeTextField, .colMS .aligned .vXMLLargeTextField {
-    width: 350px;
+    width: 380px !important;
 }
 
 form .aligned ul {
-    margin-left: 160px;
-    padding-left: 10px;
+    margin-left: 180px !important;
+    padding-left: 12px !important;
 }
 
 form .aligned div.radiolist {
-    display: inline-block;
-    margin: 0;
-    padding: 0;
+    display: inline-block !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 form .aligned p.help,
 form .aligned div.help {
-    margin-top: 0;
-    margin-left: 160px;
-    padding-left: 10px;
+    margin-top: 6px !important;
+    margin-left: 180px !important;
+    padding-left: 12px !important;
+    font-size: 0.8125rem !important;
+    color: var(--body-quiet-color) !important;
+    font-weight: 500 !important;
+    background: var(--darkened-bg) !important;
+    padding: 8px 12px !important;
+    border-radius: 4px !important;
+    border-left: 3px solid var(--orange) !important;
+}
+
+form .aligned p.help:last-child,
+form .aligned div.help:last-child {
+    margin-bottom: 0 !important;
+    padding-bottom: 8px !important;
 }
 
 form .aligned p.date div.help.timezonewarning,
 form .aligned p.datetime div.help.timezonewarning,
 form .aligned p.time div.help.timezonewarning {
-    margin-left: 0;
-    padding-left: 0;
-    font-weight: normal;
-}
-
-form .aligned p.help:last-child,
-form .aligned div.help:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    font-weight: normal !important;
 }
 
 form .aligned input + p.help,
@@ -165,334 +213,473 @@ form .aligned select + p.help,
 form .aligned input + div.help,
 form .aligned textarea + div.help,
 form .aligned select + div.help {
-    margin-left: 160px;
-    padding-left: 10px;
+    margin-left: 180px !important;
+    padding-left: 12px !important;
+    margin-top: 6px !important;
 }
 
 form .aligned select option:checked {
-    background-color: var(--selected-row);
+    background-color: var(--selected-row) !important;
 }
 
 form .aligned ul li {
-    list-style: none;
+    list-style: none !important;
 }
 
 form .aligned table p {
-    margin-left: 0;
-    padding-left: 0;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
 }
 
 .aligned .vCheckboxLabel {
-    padding: 1px 0 0 5px;
+    padding: 6px 0 0 8px !important;
+    font-weight: 500 !important;
 }
 
 .aligned .vCheckboxLabel + p.help,
 .aligned .vCheckboxLabel + div.help {
-    margin-top: -4px;
+    margin-top: -2px !important;
 }
 
 .colM .aligned .vLargeTextField, .colM .aligned .vXMLLargeTextField {
-    width: 610px;
+    width: 650px !important;
 }
 
 fieldset .fieldBox {
-    margin-right: 20px;
+    margin-right: 20px !important;
 }
 
 /* WIDE FIELDSETS */
-
 .wide label {
-    width: 200px;
+    width: 220px !important;
 }
 
 form .wide p.help,
 form .wide ul.errorlist,
 form .wide div.help {
-    padding-left: 50px;
+    padding-left: 55px !important;
 }
 
 form div.help ul {
-    padding-left: 0;
-    margin-left: 0;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
 }
 
 .colM fieldset.wide .vLargeTextField, .colM fieldset.wide .vXMLLargeTextField {
-    width: 450px;
+    width: 480px !important;
 }
 
 /* COLLAPSIBLE FIELDSETS */
-
 .collapse summary .fieldset-heading,
 .collapse summary .inline-heading {
-    background: transparent;
-    border: none;
-    color: currentColor;
-    display: inline;
-    margin: 0;
-    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    color: currentColor !important;
+    display: inline !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* MONOSPACE TEXTAREAS */
-
 fieldset.monospace textarea {
-    font-family: var(--font-family-monospace);
+    font-family: var(--font-family-monospace) !important;
+    font-size: 0.8125rem !important;
 }
 
-/* SUBMIT ROW */
-
+/* SUBMIT ROW - Enhanced (no sticky) */
 .submit-row {
-    padding: 12px 14px 12px;
-    margin: 0 0 20px;
-    background: var(--darkened-bg);
-    border: 1px solid var(--hairline-color);
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    padding: 20px !important;
+    margin: 0 0 20px 0 !important;
+    background: var(--darkened-bg) !important;
+    border: 1px solid var(--hairline-color) !important;
+    border-radius: var(--border-radius) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
 }
 
 body.popup .submit-row {
-    overflow: auto;
+    overflow: auto !important;
 }
 
 .submit-row input {
-    height: 2.1875rem;
-    line-height: 0.9375rem;
+    height: 2.5rem !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    padding: 0 20px !important;
+    font-size: 0.875rem !important;
 }
 
 .submit-row input, .submit-row a {
-    margin: 0;
+    margin: 0 !important;
 }
 
 .submit-row input.default {
-    text-transform: uppercase;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+    background: var(--default-button-bg) !important;
 }
 
 .submit-row a.deletelink {
-    margin-left: auto;
-}
-
-.submit-row a.deletelink {
-    display: block;
-    background: var(--delete-button-bg);
-    border-radius: 4px;
-    padding: 0.625rem 0.9375rem;
-    height: 0.9375rem;
-    line-height: 0.9375rem;
-    color: var(--button-fg);
+    margin-left: auto !important;
+    padding: 0.75rem 1.5rem !important;
+    height: auto !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+    border-radius: var(--border-radius) !important;
 }
 
 .submit-row a.closelink {
-    display: inline-block;
-    background: var(--close-button-bg);
-    border-radius: 4px;
-    padding: 10px 15px;
-    height: 0.9375rem;
-    line-height: 0.9375rem;
-    color: var(--button-fg);
+    display: inline-block !important;
+    background: var(--close-button-bg) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.75rem 1.5rem !important;
+    height: auto !important;
+    line-height: 1.2 !important;
+    color: var(--button-fg) !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
 }
 
 .submit-row a.deletelink:focus,
 .submit-row a.deletelink:hover,
 .submit-row a.deletelink:active {
-    background: var(--delete-button-hover-bg);
-    text-decoration: none;
+    background: var(--delete-button-hover-bg) !important;
+    text-decoration: none !important;
 }
 
 .submit-row a.closelink:focus,
 .submit-row a.closelink:hover,
 .submit-row a.closelink:active {
-    background: var(--close-button-hover-bg);
-    text-decoration: none;
+    background: var(--close-button-hover-bg) !important;
+    text-decoration: none !important;
 }
 
-/* CUSTOM FORM FIELDS */
-
+/* CUSTOM FORM FIELDS - Enhanced */
 .vSelectMultipleField {
-    vertical-align: top;
+    vertical-align: top !important;
 }
 
 .vCheckboxField {
-    border: none;
+    border: none !important;
 }
 
 .vDateField, .vTimeField {
-    margin-right: 2px;
-    margin-bottom: 4px;
+    margin-right: 8px !important;
+    margin-bottom: 6px !important;
+    padding: 8px 10px !important;
+    font-size: 0.875rem !important;
 }
 
 .vDateField {
-    min-width: 6.85em;
+    min-width: 7.5em !important;
 }
 
 .vTimeField {
-    min-width: 4.7em;
+    min-width: 5.5em !important;
 }
 
 .vURLField {
-    width: 30em;
+    width: 32em !important;
 }
 
 .vLargeTextField, .vXMLLargeTextField {
-    width: 48em;
+    width: 50em !important;
+    min-height: 120px !important;
+    padding: 10px 12px !important;
+    font-size: 0.875rem !important;
 }
 
 .flatpages-flatpage #id_content {
-    height: 40.2em;
+    height: 45em !important;
 }
 
 .module table .vPositiveSmallIntegerField {
-    width: 2.2em;
+    width: 3em !important;
 }
 
 .vIntegerField {
-    width: 5em;
+    width: 7em !important;
 }
 
 .vBigIntegerField {
-    width: 10em;
+    width: 12em !important;
 }
 
 .vForeignKeyRawIdAdminField {
-    width: 5em;
+    width: 7em !important;
 }
 
 .vTextField, .vUUIDField {
-    width: 20em;
+    width: 25em !important;
+    padding: 8px 10px !important;
+    font-size: 0.875rem !important;
 }
 
-/* INLINES */
+/* FORM INPUTS - Enhanced */
+input:not([type]), input[type=text], input[type=password], input[type=email],
+input[type=url], input[type=number], input[type=tel], textarea, select,
+.vTextField {
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 8px 10px !important;
+    margin: 4px 0 !important;
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    transition: border-color 0.15s, box-shadow 0.15s !important;
+    font-size: 0.875rem !important;
+    font-weight: 400 !important;
+}
 
+input:not([type]):focus, input[type=text]:focus, input[type=password]:focus,
+input[type=email]:focus, input[type=url]:focus, input[type=number]:focus,
+input[type=tel]:focus, textarea:focus, select:focus, .vTextField:focus {
+    border-color: var(--orange) !important;
+    box-shadow: 0 0 0 3px var(--orange-light) !important;
+    outline: none !important;
+}
+
+select {
+    height: 2.5rem !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%236C757D' stroke='%236C757D' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 14px 12px !important;
+    padding-right: 35px !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+}
+
+select[multiple] {
+    height: auto !important;
+    min-height: 180px !important;
+    padding-right: 10px !important;
+    background-image: none !important;
+}
+
+/* BUTTONS in forms - Enhanced */
+.button, input[type=submit], input[type=button], .submit-row input, a.button {
+    background: var(--button-bg) !important;
+    padding: 10px 20px !important;
+    border: none !important;
+    border-radius: var(--border-radius) !important;
+    color: var(--button-fg) !important;
+    cursor: pointer !important;
+    transition: background-color 0.15s !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+}
+
+a.button {
+    padding: 8px 16px !important;
+}
+
+.button:active, input[type=submit]:active, input[type=button]:active,
+.button:focus, input[type=submit]:focus, input[type=button]:focus,
+.button:hover, input[type=submit]:hover, input[type=button]:hover {
+    background: var(--button-hover-bg) !important;
+}
+
+/* INLINES - Enhanced */
 .inline-group {
-    padding: 0;
-    margin: 0 0 30px;
+    padding: 0 !important;
+    margin: 0 0 30px 0 !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    overflow: hidden !important;
 }
 
 .inline-group thead th {
-    padding: 8px 10px;
+    padding: 12px 15px !important;
+    background: var(--darkened-bg) !important;
+    font-weight: 600 !important;
+    font-size: 0.8125rem !important;
 }
 
 .inline-group .aligned label {
-    width: 160px;
+    width: 170px !important;
 }
 
 .inline-related {
-    position: relative;
+    position: relative !important;
 }
 
 .inline-related h4,
 .inline-related:not(.tabular) .collapse summary {
-    margin: 0;
-    color: var(--body-medium-color);
-    padding: 5px;
-    font-size: 0.8125rem;
-    background: var(--darkened-bg);
-    border: 1px solid var(--hairline-color);
-    border-left-color: var(--darkened-bg);
-    border-right-color: var(--darkened-bg);
+    margin: 0 !important;
+    color: var(--body-medium-color) !important;
+    padding: 10px 15px !important;
+    font-size: 0.875rem !important;
+    background: var(--darkened-bg) !important;
+    border: 1px solid var(--hairline-color) !important;
+    font-weight: 600 !important;
 }
 
 .inline-related h3 span.delete {
-    float: right;
+    float: right !important;
 }
 
 .inline-related h3 span.delete label {
-    margin-left: 2px;
-    font-size: 0.6875rem;
+    margin-left: 4px !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
 }
 
 .inline-related fieldset {
-    margin: 0;
-    background: var(--body-bg);
-    border: none;
-    width: 100%;
+    margin: 0 !important;
+    background: var(--body-bg) !important;
+    border: none !important;
+    width: 100% !important;
+    padding: 15px !important;
 }
 
 .inline-group .tabular fieldset.module {
-    border: none;
+    border: none !important;
 }
 
 .inline-related.tabular fieldset.module table {
-    width: 100%;
-    overflow-x: scroll;
+    width: 100% !important;
+    overflow-x: scroll !important;
 }
 
 .last-related fieldset {
-    border: none;
+    border: none !important;
 }
 
 .inline-group .tabular tr.has_original td {
-    padding-top: 2em;
+    padding-top: 2.5em !important;
 }
 
 .inline-group .tabular tr td.original {
-    padding: 2px 0 0 0;
-    width: 0;
-    _position: relative;
+    padding: 3px 0 0 0 !important;
+    width: 0 !important;
 }
 
 .inline-group .tabular th.original {
-    width: 0px;
-    padding: 0;
+    width: 0px !important;
+    padding: 0 !important;
 }
 
 .inline-group .tabular td.original p {
-    position: absolute;
-    left: 0;
-    height: 1.1em;
-    padding: 2px 9px;
-    overflow: hidden;
-    font-size: 0.5625rem;
-    font-weight: bold;
-    color: var(--body-quiet-color);
-    _width: 700px;
+    position: absolute !important;
+    left: 0 !important;
+    height: 1.1em !important;
+    padding: 4px 10px !important;
+    overflow: hidden !important;
+    font-size: 0.75rem !important;
+    font-weight: bold !important;
+    color: var(--orange) !important;
+    background: var(--darkened-bg) !important;
 }
 
 .inline-group div.add-row,
 .inline-group .tabular tr.add-row td {
-    color: var(--body-quiet-color);
-    background: var(--darkened-bg);
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--hairline-color);
+    color: var(--body-quiet-color) !important;
+    background: var(--darkened-bg) !important;
+    padding: 15px !important;
+    border: 1px dashed var(--border-color) !important;
+    text-align: center !important;
 }
 
 .inline-group .tabular tr.add-row td {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--hairline-color);
+    padding: 15px !important;
+    border: 1px dashed var(--border-color) !important;
 }
 
 .inline-group div.add-row a,
 .inline-group .tabular tr.add-row td a {
-    font-size: 0.75rem;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: var(--orange) !important;
+}
+
+.inline-group div.add-row a:hover,
+.inline-group .tabular tr.add-row td a:hover {
+    color: var(--orange-dark) !important;
 }
 
 .empty-form {
-    display: none;
+    display: none !important;
 }
 
 /* RELATED FIELD ADD ONE / LOOKUP */
-
 .related-lookup {
-    margin-left: 5px;
-    display: inline-block;
-    vertical-align: middle;
-    background-repeat: no-repeat;
-    background-size: 14px;
+    margin-left: 8px !important;
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    background-image: url(../img/search.svg) !important;
+    background-position: center !important;
+    background-color: var(--orange-light) !important;
+    border-radius: 4px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: background-color 0.15s !important;
 }
 
-.related-lookup {
-    width: 1rem;
-    height: 1rem;
-    background-image: url(../img/search.svg);
+.related-lookup:hover {
+    background-color: var(--orange) !important;
 }
 
 form .related-widget-wrapper ul {
-    display: inline-block;
-    margin-left: 0;
-    padding-left: 0;
+    display: inline-block !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
 }
 
 .clearable-file-input input {
-    margin-top: 0;
+    margin-top: 0 !important;
+}
+
+/* RESPONSIVE FORMS */
+@media (max-width: 768px) {
+    .form-row {
+        padding: 12px 15px !important;
+    }
+    
+    .aligned label {
+        width: 100% !important;
+        float: none !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .aligned label + p,
+    .aligned label + div.readonly,
+    form .aligned p.help,
+    form .aligned div.help,
+    form .aligned input + p.help,
+    form .aligned input + div.help {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+    }
+    
+    .submit-row {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    
+    .submit-row a.deletelink {
+        margin-left: 0 !important;
+        align-self: stretch !important;
+        text-align: center !important;
+    }
+    
+    .vLargeTextField, .vXMLLargeTextField,
+    .vTextField, .vUUIDField,
+    .colM .aligned .vLargeTextField,
+    .colMS .aligned .vLargeTextField {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .inline-group .tabular {
+        overflow-x: auto !important;
+    }
 }
