@@ -89,17 +89,6 @@
     flex: 1 1 50% !important;
 }
 
-
-
-/* Fallback gradient if image doesn't load */
-.login-left::before {
-    content: '' !important;
-    position: absolute !important;
-    inset: 0 !important;
-    background: linear-gradient(to right, rgba(248, 120, 15, 0.92), rgba(230, 111, 13, 0.95)) !important;
-    z-index: 1 !important;
-}
-
 .login-left-content {
     position: relative !important;
     z-index: 2 !important;
