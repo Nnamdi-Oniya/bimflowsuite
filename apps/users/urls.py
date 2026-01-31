@@ -21,7 +21,7 @@ urlpatterns = [
     path("auth/register/", RegisterView.as_view(), name="auth_register"),
     path("auth/activate/", ActivateAccountView.as_view(), name="auth_activate"),
     path(
-        "auth/request-submission/",
+        "user/request-submission/",
         RequestSubmissionView.as_view(),
         name="auth_request_submission",
     ),

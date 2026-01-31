@@ -1,0 +1,171 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}
+    {% if form.errors %}{% translate "Error:" %} {% endif %}{{ block.super }}
+{% endblock %}
+
+{% block extrastyle %}
+     {{ block.super }}
+    <link rel="stylesheet" href="{% static "admin/css/login.css" %}">
+    {{ form.media }}
+     <style>
+        .login-left {
+            background-image: url("{% static 'admin/images/login-bg-warm.jpg' %}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        
+        /* Fallback gradient if image doesn't load */
+        .login-left {
+            background-color: #f8780f;
+            background-image: linear-gradient(135deg, #f8780f 0%, #ff9a3d 100%);
+        }
+        
+        /* ADD THIS - Make labels orange in dark mode */
+        @media (prefers-color-scheme: dark) {
+            .form-row label[for="id_username"],
+            .form-row label[for="id_password"] {
+                color: #f8780f !important;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block content %}
+<div class="login-split-wrapper">
+
+    <!-- LEFT: Background with gradient overlay -->
+    <div class="login-left">
+        <div class="login-left-content">
+            <h1>{% translate "Welcome to BIMFlow Admin" %}</h1>
+            <p>{% translate "Access the administrative dashboard to manage your BIMFlow Suite platform." %}</p>
+        </div>
+    </div>
+
+    <!-- RIGHT: Login Form -->
+    <div class="login-right">
+        <div class="login-card">
+            <div class="login-header">
+                <h2>{% translate "Administrator Login" %}</h2>
+
+                {% if user.is_authenticated %}
+                <p class="already-authenticated">
+                    {% blocktranslate with username=user.username %}
+                        You are logged in as <strong>{{ username }}</strong>
+                        but don't have permission to access this page.
+                        Please sign in with an administrator account.
+                    {% endblocktranslate %}
+                </p>
+                {% endif %}
+            </div>
+
+            {% if form.errors and not form.non_field_errors %}
+            <p class="errornote">
+                {% blocktranslate count counter=form.errors.items|length %}
+                    Please correct the error below.
+                {% plural %}
+                    Please correct the errors below.
+                {% endblocktranslate %}
+            </p>
+            {% endif %}
+
+            {% if form.non_field_errors %}
+                {% for error in form.non_field_errors %}
+                <p class="errornote">{{ error }}</p>
+                {% endfor %}
+            {% endif %}
+
+            <form action="{{ app_path }}" method="post" id="login-form" novalidate>
+                {% csrf_token %}
+
+                <div class="form-row">
+                    <label for="id_username">{% translate 'Username or Email' %}</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.username.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-row">
+                    <label for="id_password">{% translate 'Password' %}</label>
+                    {{ form.password }}
+                    {% if form.password.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.password.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                </div>
+
+                <!-- Forgot Password Link - ALWAYS VISIBLE -->
+                <div class="forgot-password-row">
+                    {% url 'admin_password_reset' as password_reset_url %}
+                    {% if password_reset_url %}
+                    <a href="{{ password_reset_url }}">{% translate 'Forgot your password?' %}</a>
+                    {% else %}
+                    <a href="#">{% translate 'Forgot your password?' %}</a>
+                    {% endif %}
+                </div>
+
+                <div class="submit-row">
+                    <input type="submit" value="{% translate 'Log in' %}">
+                </div>
+            </form>
+
+            <!-- Alternative password reset link -->
+            <div class="password-reset-link">
+                {% url 'admin_password_reset' as password_reset_url %}
+                {% if password_reset_url %}
+                <a href="{{ password_reset_url }}">{% translate 'Reset password' %}</a>
+                {% endif %}
+            </div>
+
+            <div class="login-footer">
+                <p>{% translate "BIMFlow Admin Portal v2.0" %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Ensure all links are orange in both light/dark modes
+document.addEventListener('DOMContentLoaded', function() {
+    // Style all links in the login form
+    const links = document.querySelectorAll('.login-card a');
+    links.forEach(link => {
+        link.style.color = 'var(--link-color)';
+        link.addEventListener('mouseenter', function() {
+            this.style.color = 'var(--link-hover)';
+        });
+        link.addEventListener('mouseleave', function() {
+            this.style.color = 'var(--link-color)';
+        });
+    });
+    
+    // Add orange focus ring to form inputs
+    const inputs = document.querySelectorAll('.form-row input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.style.borderColor = 'var(--primary)';
+            this.style.boxShadow = '0 0 0 4px rgba(248, 120, 15, 0.16)';
+        });
+    });
+});
+</script>
+{% endblock %}
