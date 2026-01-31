@@ -1,103 +1,133 @@
 @startuml BIMFlow_Architecture
+' BIMFlow Suite System Architecture
+' Django REST API with 4 Main Apps & React Frontend
 
 !define RECTANGLE class
 
 skinparam packageStyle rectangle
 skinparam component {
   BackgroundColor<<frontend>> LightBlue
-  BackgroundColor<<gateway>> LightGreen
-  BackgroundColor<<service>> LightYellow
+  BackgroundColor<<rest>> LightGreen
+  BackgroundColor<<app>> LightYellow
   BackgroundColor<<data>> LightCoral
   BackgroundColor<<external>> LightGray
 }
 
 package "Client Layer" {
-  [Web UI\nReact + TypeScript] as WebUI <<frontend>>
-  [CLI\nPython] as CLI <<frontend>>
-  [Third-party Apps] as ThirdParty <<frontend>>
+  [React + TypeScript + Vite\nWeb UI] as ReactUI <<frontend>>
+  [IFC Upload/Visualization\nWeb3D Viewer] as Viewer3D <<frontend>>
+  [WebSocket Connection\nReal-time Updates] as WebSocket <<frontend>>
 }
 
-package "API Gateway Layer" {
-  [API Gateway\nFastAPI] as Gateway <<gateway>>
-  [OAuth 2.1\nAuthentication] as Auth <<gateway>>
-  [Rate Limiter\nRedis] as RateLimit <<gateway>>
-  [Load Balancer\nNginx] as LB <<gateway>>
+package "API Layer - Django REST Framework" {
+  [URL Router\n/api/v1/*] as Router <<rest>>
+  [JWT Authentication\n(djangorestframework-simplejwt)] as JWT <<rest>>
+  [CORS Middleware\nCross-Origin Support] as CORS <<rest>>
+  [Swagger/OpenAPI\nAPI Documentation] as Swagger <<rest>>
+  [GraphQL Schema\n(graphene-django)] as GraphQL <<rest>>
 }
 
-package "Microservices Layer" {
-  [Intent Capture\nService] as IntentService <<service>>
-  [Parametric Generator\nService] as GeneratorService <<service>>
-  [Specification\nService] as SpecService <<service>>
-  [Analytics\nService] as AnalyticsService <<service>>
-  [Compliance\nService] as ComplianceService <<service>>
-  [Automation\nService] as AutomationService <<service>>
+package "Apps Layer - 4 Main Django Apps" {
+  package "users/" {
+    [Authentication\n(login/register)] as AuthApp <<app>>
+    [Organization Management\nMulti-tenant] as OrgApp <<app>>
+    [Demo Request Handling] as DemoApp <<app>>
+  }
+
+  package "parametric_generator/" {
+    [Project Model\n(30+ fields)] as ProjectModel <<app>>
+    [IFC Generator\n(building/road/bridge/tunnel)] as GeneratorApp <<app>>
+    [Specifications Handler] as SpecHandler <<app>>
+  }
+
+  package "compliance_engine/" {
+    [YAML Rule Engine\n(default_*.yaml)] as RuleEngine <<app>>
+    [Advanced Clash Detector\n(Geometry Analysis)] as ClashDetector <<app>>
+    [Compliance Checker] as ComplianceApp <<app>>
+  }
+
+  package "analytics/" {
+    [IFC Upload Handler] as UploadHandler <<app>>
+    [Analytics Runner\n(QTO/Cost/Schedule/Anomaly)] as AnalyticsApp <<app>>
+    [Report Generator\n(PDF Export)] as ReportGen <<app>>
+  }
+}
+
+package "Background Processing" {
+  [Celery Worker\nAsync Tasks] as CeleryWorker <<app>>
+  queue "Redis Queue\nTask Broker" as RedisQueue <<data>>
+  [Django Channels\nWebSocket Handler] as Channels <<app>>
 }
 
 package "Data Layer" {
-  database "PostgreSQL\nMetadata" as Postgres <<data>>
-  database "MongoDB\nDocuments" as Mongo <<data>>
-  database "Redis\nCache" as Redis <<data>>
-  storage "MinIO/S3\nIFC Files" as S3 <<data>>
-  database "Elasticsearch\nSearch" as Elastic <<data>>
+  database "PostgreSQL\n(Primary DB)" as Postgres <<data>>
+  database "Redis\nCache & Queue" as Redis <<data>>
+  storage "S3/Local Storage\nIFC Files" as Storage <<data>>
 }
 
-package "Message Queue" {
-  queue "RabbitMQ\nEvent Bus" as RabbitMQ <<data>>
+package "External Libraries & Services" {
+  [ifcopenshell\nIFC Parsing/Generation] as IfcOpenShell <<external>>
+  [python-dotenv\nConfiguration] as DotEnv <<external>>
+  [Email Service\n(SMTP/SendGrid)] as Email <<external>>
+  [Three.js + web-ifc-viewer\n3D Visualization] as ThreeJS <<external>>
 }
 
-package "External Services" {
-  [OpenAI API\nGPT-4] as OpenAI <<external>>
-  [IFC.js Library] as IFCjs <<external>>
-  [IfcOpenShell] as IFCShell <<external>>
-  [Code Databases\nIBC, ADA] as CodeDB <<external>>
-  [Email Service\nSendGrid] as Email <<external>>
-}
+' ========== CLIENT TO API CONNECTIONS ==========
+ReactUI --> Router : "HTTP/REST\nJSON"
+ReactUI --> JWT : "Login/Register\nToken Refresh"
+ReactUI --> WebSocket : "Real-time\nUpdates"
+Viewer3D --> ReactUI : "Renders IFC"
 
-' Client to Gateway connections
-WebUI --> LB
-CLI --> LB
-ThirdParty --> LB
+' ========== API ROUTING TO APPS ==========
+Router --> AuthApp : "/auth/*\n(login/register)"
+Router --> OrgApp : "/organizations/*\n(multi-tenant)"
+Router --> ProjectModel : "/bim-projects/projects/*\n(CRUD)"
+Router --> GeneratorApp : "/bim-projects/ifcs/*\n(Generate IFC)"
+Router --> UploadHandler : "/analytics/upload/*\n(Upload IFC)"
+Router --> ComplianceApp : "/compliance/checks/*\n(Run Compliance)"
+Router --> AnalyticsApp : "/analytics/runs/*\n(Run Analytics)"
+Router --> Swagger : "GET /swagger/\n(API Docs)"
+Router --> GraphQL : "POST /graphql/\n(GraphQL)"
 
-' Gateway layer connections
-LB --> Gateway
-Gateway --> Auth
-Gateway --> RateLimit
-Gateway ..> IntentService : HTTP/REST
-Gateway ..> GeneratorService : HTTP/REST
-Gateway ..> SpecService : HTTP/REST
-Gateway ..> AnalyticsService : HTTP/REST
-Gateway ..> ComplianceService : HTTP/REST
-Gateway ..> AutomationService : HTTP/REST
+' ========== AUTHENTICATION & MIDDLEWARE ==========
+JWT --> Postgres : "Verify Token\nLoad User"
+CORS --> ReactUI : "Validate Origin"
 
-' Service to Data connections
-IntentService --> Postgres
-IntentService --> Mongo
-IntentService --> Redis
-IntentService --> OpenAI
+' ========== APP TO DATABASE CONNECTIONS ==========
+AuthApp --> Postgres : "User/Org Data"
+OrgApp --> Postgres : "Organization"
+DemoApp --> Postgres : "Demo Requests"
 
-GeneratorService --> Postgres
-GeneratorService --> S3
-GeneratorService --> IFCShell
-GeneratorService --> RabbitMQ
+ProjectModel --> Postgres : "Project CRUD"
+GeneratorApp --> Postgres : "GeneratedIFC"
+GeneratorApp --> Storage : "Store IFC File"
+SpecHandler --> Postgres : "Specifications"
 
-SpecService --> Postgres
-SpecService --> Mongo
-SpecService --> RabbitMQ
+ClashDetector --> Postgres : "Geometry Data"
+RuleEngine --> Postgres : "Compliance Rules"
+ComplianceApp --> Postgres : "ComplianceCheck"
 
-AnalyticsService --> Postgres
-AnalyticsService --> Redis
-AnalyticsService --> RabbitMQ
+UploadHandler --> Postgres : "Analytics Runs"
+AnalyticsApp --> Postgres : "Analysis Results"
+ReportGen --> Storage : "PDF Reports"
 
-ComplianceService --> Postgres
-ComplianceService --> CodeDB
-ComplianceService --> RabbitMQ
+' ========== ASYNC TASK PROCESSING ==========
+GeneratorApp --> CeleryWorker : "Trigger\nIFC Generation"
+ComplianceApp --> CeleryWorker : "Trigger\nCompliance Check"
+AnalyticsApp --> CeleryWorker : "Trigger\nAnalytics Run"
+CeleryWorker --> RedisQueue : "Job Queue"
+CeleryWorker --> Postgres : "Update Status"
+CeleryWorker --> IfcOpenShell : "Generate/Parse IFC"
+Channels --> WebSocket : "Push Updates"
+Channels --> RedisQueue : "Task Completion"
 
-AutomationService --> Postgres
-AutomationService --> RabbitMQ
-AutomationService --> Email
-
-' Frontend to External
-WebUI --> IFCjs
+' ========== EXTERNAL INTEGRATIONS ==========
+GeneratorApp --> IfcOpenShell : "Create IFC"
+ComplianceApp --> IfcOpenShell : "Parse IFC"
+AnalyticsApp --> IfcOpenShell : "Extract Data"
+ReportGen --> Email : "Send Reports"
+ReactUI --> ThreeJS : "3D Visualization"
+UploadHandler --> IfcOpenShell : "Parse Uploaded"
 
 ' Message Queue connections
 RabbitMQ ..> IntentService : Subscribe

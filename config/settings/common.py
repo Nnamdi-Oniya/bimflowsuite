@@ -14,7 +14,8 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-#_76fxvvmfvub+$f(^2%-4ezn!4j#r$j@sz*1cjlz$t36hh@5j",
 )
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
 ALLOWED_HOSTS = ["*"]
 
 # Backend URL for onboarding emails
@@ -190,7 +191,7 @@ BIMFLOW_IFC_VERSION = "IFC4X3"
 BIMFLOW_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BIMFLOW_GROQ_API_KEY = os.getenv(
     "BIMFLOW_GROQ_API_KEY", ""
-)  # FIXED: Empty default (stub mode)
+)
 BIMFLOW_MAX_IFC_SIZE_MB = 100
 BIMFLOW_RULEPACKS_DIR = BASE_DIR / "compliance_engine" / "rulepacks"
 BIMFLOW_HUGGINGFACE_MODEL = "microsoft/DialoGPT-medium"
@@ -204,7 +205,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Swagger Settings (for Bearer auth UI)
 SWAGGER_SETTINGS = {
-    "USE_SESSION_AUTH": False,  # FIXED: Disable Basic/Django login
+    "USE_SESSION_AUTH": False,
     "SECURITY_DEFINITIONS": {
         "Bearer": {
             "type": "apiKey",
@@ -225,7 +226,7 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": 60,  # persistent connections
+        "CONN_MAX_AGE": 60,
         "OPTIONS": {
             "connect_timeout": 5,
         },
@@ -258,13 +259,10 @@ LOGGING = {
 }
 
 # Email Configuration
-EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@bimflow.com")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@bimflow.com")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@bimflowsuite.com")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
