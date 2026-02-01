@@ -1,13 +1,6 @@
 from .common import *  # noqa: F403
 
-
-DEBUG = True
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
-
-PASSWORD = os.environ.get("POSTGRES_PASSWORD")
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split(",") 
 
 REST_FRAMEWORK = {
     "NON_FIELD_ERRORS_KEY": "error",
@@ -42,15 +35,11 @@ REST_FRAMEWORK = {
 
 
 CORS_ORIGIN_ALLOW_ALL = False
+
 CORS_ORIGIN_WHITELIST = ("http://localhost:8081", "http://localhost:4200")
 
 CSRF_COOKIE_SECURE = False
+
 CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1", "http://localhost:4200"]
 
-# For sending email
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
-EMAIL_HOST = os.environ.get("EMAIL_HOST")
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-EMAIL_PORT = os.environ.get("EMAIL_PORT")
-EMAIL_USE_TLS = True
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

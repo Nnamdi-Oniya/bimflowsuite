@@ -1,0 +1,46 @@
+# BIM-400: Flatten Root Project & Production Hardening
+
+**Branch:** `BIM-400-flatten-root-project`  
+**Date:** January 31, 2026
+
+---
+
+## What Changed
+
+### Configuration Files
+- **`config/settings/production.py`** — Added CORS whitelisting and domain validation (`bimflowsuite.com`, `api.bimflowsuite.com`)
+- **`config/settings/common.py`** — Updated CORS middleware configuration
+- **`config/settings/development.py`** — Enhanced development defaults
+- **`config/settings/local.py`** — Minor updates for local flexibility
+
+### Dependencies
+- **`requirements/prod.txt`** — Added `gunicorn`, `whitenoise`, `psycopg2-binary`
+
+### Documentation
+- **`README.md`** — Expanded with production deployment guide and security configuration
+- **`CONTRIBUTING.md`** — New contributing guidelines (500+ lines)
+
+### Cleanup
+- **`release/designs/class_diagram.plantuml`** — Removed (replaced by markdown documentation)
+
+---
+
+## Why These Changes Were Made
+
+### Security Hardening
+Production deployment required explicit CORS and domain whitelisting to prevent:
+- CSRF attacks via strict origin validation
+- Host header injection attacks
+- Unauthorized API requests from non-whitelisted domains
+
+### Production Dependencies
+Django development server is insufficient for production. Added:
+- **`gunicorn`** — Production WSGI server (replaces development server)
+- **`whitenoise`** — Efficient static file serving without S3 dependency
+- **`psycopg2-binary`** — Explicit PostgreSQL support
+
+### Deployment Documentation
+Teams deploying to production lack clear setup instructions. Updated README with step-by-step production deployment guidance.
+
+### Contributing Standards
+GitHub-integrated contributing guidelines standardize development workflow, commit conventions, and PR/issue processes for team consistency.

@@ -1,0 +1,228 @@
+@startuml BIMFlow_ER_Diagram
+' BIMFlow Suite Entity-Relationship Diagram
+' Represents the implemented database schema
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+' ========== USER & ORGANIZATION MANAGEMENT ==========
+class User as "User (Django Auth)" {
+  PK id: int
+  username: str
+  email: str
+  password: str
+  first_name: str
+  last_name: str
+  is_active: bool
+  is_staff: bool
+  created_at: datetime
+}
+
+class Organization {
+  PK id: int
+  name: str
+  slug: str (unique)
+  description: text
+  FK owner_id: User
+  contact_email: email
+  contact_phone: str
+  website: url
+  country: str
+  state: str
+  city: str
+  address: text
+  postal_code: str
+  is_active: bool
+  created_at: datetime
+  updated_at: datetime
+}
+
+class RequestSubmission {
+  PK id: int
+  request_type: str (demo/general/compliance/other)
+  firstname: str
+  lastname: str
+  email: email
+  company_name: str
+  company_address: text
+  country: str
+  sector: str
+  job_title: str
+  company_position: str
+  phone_number: str
+  additional_details: text
+  consent_marketing: bool
+  consent_privacy: bool
+  email_sent: bool
+  admin_response: text
+  admin_response_sent: bool
+  FK onboarded_user_id: User
+  onboarding_email_sent: bool
+  created_at: datetime
+}
+
+' ========== PROJECT MANAGEMENT ==========
+class Project {
+  PK id: int
+  FK organization_id: Organization
+  FK user_id: User
+  name: str
+  description: text
+  project_number: str (unique)
+  status: str (concept/schematic/detailed/as-built)
+  client_name: str
+  --Location--
+  country: str
+  city_address: str
+  latitude: decimal
+  longitude: decimal
+  elevation_above_sea: decimal
+  crs: str (CRS choice)
+  --Building Type--
+  asset_type_code: str
+  building_type: str
+  total_floors: int
+  average_floor_height: decimal
+  total_built_area: decimal
+  site_area: decimal
+  --Units--
+  length_unit: str (mm/m)
+  area_unit: str (m2/mm2)
+  volume_unit: str (m3/mm3)
+  --IFC Schema--
+  ifc_schema_version: str (2x3/4/4x3)
+  materials: jsonfield
+  --Authoring & Approval--
+  authoring_company: str
+  approval_status: str
+  revision_id: str
+  change_description: text
+  created_at: datetime
+  updated_at: datetime
+}
+
+' ========== IFC GENERATION ==========
+class GeneratedIFC {
+  PK id: int
+  name: str
+  FK project_id: Project
+  asset_type: str (building/road/bridge/tunnel/etc)
+  ifc_schema_version: str
+  status: str (pending/generating/completed/failed)
+  specifications: jsonfield
+  ifc_file: file (S3/local storage)
+  file_size: bigint (bytes)
+  error_message: text
+  created_at: datetime
+  updated_at: datetime
+  completed_at: datetime
+}
+
+' ========== COMPLIANCE ENGINE ==========
+class ComplianceCheck {
+  PK id: int
+  FK generated_ifc_id: GeneratedIFC
+  rule_pack: str
+  status: str (pending/passed/failed/warning)
+  results: jsonfield (rule evaluation results)
+  clash_results: jsonfield (advanced clash detection)
+  checked_at: datetime
+  updated_at: datetime
+}
+
+class RulePack {
+  PK id: int
+  name: str (unique)
+  yaml_content: text
+  description: text
+  created_at: datetime
+}
+
+' ========== ANALYTICS & REPORTING ==========
+class AnalyticsRun {
+  PK id: int
+  FK generated_ifc_id: GeneratedIFC
+  analytics_type: str (qto/cost/schedule/anomaly)
+  results: jsonfield
+  report_file: file (PDF reports)
+  has_anomalies: bool
+  created_at: datetime
+  updated_at: datetime
+}
+
+' ========== RELATIONSHIPS ==========
+
+' User relationships
+User "1" -- "0..n" Organization: "owns"
+User "1" -- "0..n" Project: "creates"
+User "1" -- "0..1" RequestSubmission: "onboarded from"
+
+' Organization relationships
+Organization "1" -- "0..n" Project: "owns"
+
+' Project relationships
+Project "1" -- "0..n" GeneratedIFC: "has"
+
+' GeneratedIFC relationships
+GeneratedIFC "1" -- "0..n" ComplianceCheck: "has"
+GeneratedIFC "1" -- "0..n" AnalyticsRun: "has"
+
+' Compliance relationships
+ComplianceCheck "n" -- "1" RulePack: "uses"
+
+' Request submission relationship
+RequestSubmission "1" -- "1" User: "creates"
+
+' ========== NOTES ==========
+
+note right of User
+  **Django Auth User Model**
+  - Standard Django user model
+  - Extended via related models
+  - Used for authentication (JWT)
+end note
+
+note right of Organization
+  **Multi-Tenant Support**
+  - Enables organization-based access
+  - Projects scoped to organization
+  - Access control via org membership
+end note
+
+note right of Project
+  **Comprehensive Project Model**
+  - 30+ metadata fields
+  - Supports multiple asset types
+  - Tracks project lifecycle
+  - Material definitions (JSON)
+end note
+
+note right of GeneratedIFC
+  **IFC Generation Storage**
+  - Linked to specific project
+  - Stores generated IFC files
+  - Tracks generation status
+  - Supports multiple asset types
+end note
+
+note right of ComplianceCheck
+  **Rule-Based Compliance**
+  - YAML-driven rule packs
+  - Clash detection integrated
+  - Results stored for audit
+  - Supports multiple rule sets
+end note
+
+note right of AnalyticsRun
+  **IFC Analysis & Reports**
+  - Quantity takeoff (QTO)
+  - Cost estimation
+  - Schedule analysis
+  - Anomaly detection
+  - PDF report generation
+end note
+
+@enduml
