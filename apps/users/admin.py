@@ -1,14 +1,33 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.urls import path, reverse
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
-from .models import RequestSubmission, Organization, OrganizationMember
+from .models import RequestSubmission, Organization, OrganizationMember, User
 from helper.utils import (
     send_admin_notification,
     create_onboarding_user,
     send_onboarding_email,
 )
+
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    """Register the custom User model with Django admin"""
+
+    list_display = [
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "is_active",
+        "is_staff",
+        "date_joined",
+        "last_login",
+    ]
+    list_filter = ["is_active", "is_staff", "is_superuser", "date_joined"]
+    search_fields = ["username", "email", "first_name", "last_name"]
 
 
 @admin.register(RequestSubmission)
@@ -20,6 +39,7 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         "email_status",
         "response_status",
         "onboarding_status",
+        "action_buttons",
         "created_at",
     ]
     list_filter = [
@@ -37,9 +57,11 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         "admin_response_sent",
         "onboarded_user",
         "onboarding_email_sent",
+        "project_params",
     ]
     date_hierarchy = "created_at"
     actions = ["send_notification_email"]
+    change_form_template = "admin/users/requestsubmission/change_form.html"
 
     fieldsets = (
         (
@@ -57,6 +79,13 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         (
             "Additional Information",
             {"fields": ("additional_details", "consent_marketing", "consent_privacy")},
+        ),
+        (
+            "Model Parameters",
+            {
+                "fields": ("project_params",),
+                "description": "IFC generation parameters submitted from GenerateModelPage (if provided)",
+            },
         ),
         ("Admin Response", {"fields": ("admin_response",)}),
         ("Onboarding", {"fields": ("onboarded_user", "onboarding_email_sent")}),
@@ -120,6 +149,33 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
             )
 
     onboarding_status.short_description = "Onboarding Status"
+
+    def action_buttons(self, obj):
+        """Display quick action buttons in list view"""
+        buttons = []
+
+        if not obj.admin_response_sent:
+            buttons.append(
+                f'<a class="button" href="{obj.id}/send-response/" '
+                'style="background-color: #417690; color: white; padding: 5px 10px; '
+                'border-radius: 3px; text-decoration: none; font-size: 11px; margin-right: 5px;">'
+                "Reply</a>"
+            )
+
+        # Show onboard button only if response has been sent AND user hasn't been onboarded yet
+        if obj.admin_response_sent and not obj.onboarded_user:
+            buttons.append(
+                f'<a class="button" href="{obj.id}/onboard-user/" '
+                'style="background-color: #28a745; color: white; padding: 5px 10px; '
+                'border-radius: 3px; text-decoration: none; font-size: 11px;">'
+                "Onboard</a>"
+            )
+
+        if buttons:
+            return format_html(" ".join(buttons))
+        return "—"
+
+    action_buttons.short_description = "Actions"
 
     def send_notification_email(self, request, queryset):
         """Action to send notification emails"""
@@ -220,7 +276,10 @@ BIMFlow Suite Team
                 self.message_user(request, "Response cannot be empty.", level="error")
 
             return HttpResponseRedirect(
-                f"/admin/intent_capture/requestsubmission/{submission_id}/change/"
+                reverse(
+                    "admin:users_requestsubmission_change",
+                    args=[submission_id],
+                )
             )
 
         # GET request - show form
@@ -229,6 +288,10 @@ BIMFlow Suite Team
             "submission": submission,
             "opts": self.model._meta,
             "has_change_permission": self.has_change_permission(request, submission),
+            "cancel_url": reverse(
+                "admin:users_requestsubmission_change",
+                args=[submission_id],
+            ),
         }
         return render(request, "admin/send_response_form.html", context)
 
@@ -256,23 +319,29 @@ BIMFlow Suite Team
         if submission.onboarded_user:
             self.message_user(request, "User already onboarded.", level="warning")
             return HttpResponseRedirect(
-                f"/admin/api/requestsubmission/{submission_id}/change/"
+                reverse(
+                    "admin:users_requestsubmission_change",
+                    args=[submission_id],
+                )
             )
 
         if request.method == "POST":
-            # Create user and send onboarding email
-            user, email_sent = create_onboarding_user(submission)
+            # Create user and send onboarding email (also creates project if params exist)
+            user, email_sent, project = create_onboarding_user(submission)
 
             if user:
+                project_msg = ""
+                if project:
+                    project_msg = f" with project '{project.name}'"
                 if email_sent:
                     self.message_user(
                         request,
-                        f"User account created and onboarding email sent to {submission.email}",
+                        f"User account created{project_msg} and onboarding email sent to {submission.email}",
                     )
                 else:
                     self.message_user(
                         request,
-                        f"User account created but failed to send onboarding email.",
+                        f"User account created{project_msg} but failed to send onboarding email.",
                         level="warning",
                     )
             else:
@@ -281,7 +350,10 @@ BIMFlow Suite Team
                 )
 
             return HttpResponseRedirect(
-                f"/admin/api/requestsubmission/{submission_id}/change/"
+                reverse(
+                    "admin:users_requestsubmission_change",
+                    args=[submission_id],
+                )
             )
 
         # GET request - show confirmation
@@ -290,6 +362,10 @@ BIMFlow Suite Team
             "submission": submission,
             "opts": self.model._meta,
             "has_change_permission": self.has_change_permission(request, submission),
+            "cancel_url": reverse(
+                "admin:users_requestsubmission_change",
+                args=[submission_id],
+            ),
         }
         return render(request, "admin/onboard_user_form.html", context)
 
@@ -335,6 +411,7 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_display = [
         "name",
         "slug",
+        "domain",
         "owner",
         "member_count",
         "country",

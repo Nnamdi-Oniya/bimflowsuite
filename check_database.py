@@ -109,7 +109,9 @@ def check_django_models():
         from apps.parametric_generator.models import Project, GeneratedIFC
         from apps.compliance_engine.models import ComplianceCheck, RulePack
         from apps.analytics.models import AnalyticsRun
-        from django.contrib.auth.models import User
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
 
         # User & Organization data
         user_count = User.objects.count()

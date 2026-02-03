@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrastyle %}
+  <style>
+    #header {
+      background: #417690;
+    }
+    #header a:link, #header a:visited {
+      color: #fff;
+    }
+    #branding h1 {
+      color: #fff;
+    }
+    #branding h1 a {
+      color: #fff !important;
+    }
+  </style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">BIMFlow Suite Admin</a></h1>
+{% endblock %}
+
+{% block title %}BIMFlow Suite Admin{% endblock %}
+
+{% block nav-global %}{% endblock %}

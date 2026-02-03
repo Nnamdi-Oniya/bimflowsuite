@@ -1,8 +1,10 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.users.models import RequestSubmission
 from .models import Organization, OrganizationMember
+
+User = get_user_model()
 
 
 class LoginSerializer(serializers.Serializer):
@@ -71,6 +73,7 @@ class RequestSubmissionSerializer(serializers.ModelSerializer):
             "additional_details",
             "consent_marketing",
             "consent_privacy",
+            "project_params",
         ]
         extra_kwargs = {
             "request_type": {"required": True},
@@ -86,6 +89,7 @@ class RequestSubmissionSerializer(serializers.ModelSerializer):
             "additional_details": {"required": False, "allow_blank": True},
             "consent_marketing": {"required": True},
             "consent_privacy": {"required": True},
+            "project_params": {"required": False, "allow_null": True},
         }
 
 

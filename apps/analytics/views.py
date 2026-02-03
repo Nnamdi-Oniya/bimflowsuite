@@ -21,7 +21,7 @@ class AnalyticsRunViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(model__program_spec__intent__user=self.request.user)
 
     @action(detail=False, methods=["post"])
-    def run(self, request):
+    def analyze_ifc(self, request):
         model_id = request.data.get("model_id")
         atype = request.data.get("type", "qto")
 

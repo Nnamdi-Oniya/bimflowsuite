@@ -2,12 +2,15 @@
 
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 import secrets
+
+# Get the custom User model
+User = get_user_model()
 
 
 def send_admin_notification(subject, body, recipient_email=None):
@@ -135,12 +138,13 @@ def send_request_notification(submission):
 def create_onboarding_user(submission):
     """
     Create a user account from a request submission and send onboarding email.
+    If project_params are provided, create a Project record for the user.
 
     Args:
         submission: RequestSubmission instance
 
     Returns:
-        Tuple of (user, onboarding_email_sent)
+        Tuple of (user, onboarding_email_sent, project)
     """
     try:
         # Generate unique username from email
@@ -164,50 +168,95 @@ def create_onboarding_user(submission):
         user.set_unusable_password()
         user.save()
 
+        # Create Organization for the user (one org per company)
+        from apps.users.models import Organization, OrganizationMember
+        from apps.parametric_generator.models import Project
+
+        organization, _ = Organization.objects.get_or_create(
+            slug=submission.company_name.lower().replace(" ", "-")[:50],
+            defaults={
+                "name": submission.company_name,
+                "description": f"Organization for {submission.company_name}",
+                "owner": user,
+            },
+        )
+
+        # Add user as organization member with admin role
+        OrganizationMember.objects.get_or_create(
+            user=user,
+            organization=organization,
+            defaults={
+                "role": "admin",
+                "can_edit_projects": True,
+                "can_delete_projects": True,
+                "can_manage_team": True,
+                "can_manage_settings": True,
+                "is_active": True,
+            },
+        )
+
+        # Create Project if project_params are provided and not empty
+        project = None
+        if submission.project_params and isinstance(submission.project_params, dict):
+            try:
+                project_data = submission.project_params
+
+                # Only create project if essential fields are present
+                if project_data.get("projectName") or project_data.get("projectType"):
+                    project = Project.objects.create(
+                        organization=organization,
+                        user=user,
+                        name=project_data.get(
+                            "projectName", f"Project from {submission.firstname}"
+                        ),
+                        description=project_data.get("description", ""),
+                        project_number=f"ONBOARD-{user.id}-{submission.id}",
+                        status="concept",
+                        client_name=submission.company_name,
+                        country=submission.country,
+                        city_address=project_data.get("location", ""),
+                        building_type=project_data.get("projectType", "other"),
+                        additional_details=str(project_data),
+                    )
+            except Exception as e:
+                print(f"Failed to create project from params: {str(e)}")
+
         # Generate password reset token for activation
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
+        email_encoded = urlsafe_base64_encode(force_bytes(submission.email))
 
-        # Create activation link - points to backend API endpoint
-        activation_url = f"{settings.BASE_URL}/api/v1/auth/activate/"
+        # Create frontend password setup link with encoded parameters
+        frontend_url = settings.BASE_URL.replace("/admin", "")  # Get frontend URL
+        password_setup_url = (
+            f"{frontend_url}/set-password?email={email_encoded}&uid={uid}&token={token}"
+        )
 
-        # Send onboarding email with instructions
+        # Build onboarding email body
+        project_mention = ""
+        if project:
+            project_mention = f"\n\nYour Project: We've automatically created a project '{project.name}' based on your submission. You can view and edit it after setting your password."
+
         subject = f"Welcome to BIMFlow Suite - Set Your Password"
         body = f"""Dear {submission.firstname} {submission.lastname},
 
 Welcome to BIMFlow Suite! Your account has been created by our team.
 
-To complete your registration and set your password, use the following credentials:
+To complete your registration and set your password, click the link below:
 
-**User ID (UID):** {uid}
-**Activation Token:** {token}
+{password_setup_url}
 
-Instructions:
-1. Go to your BIMFlow Suite account page
-2. Click "Activate Account" 
-3. Enter the UID and Token above
-4. Create a new password (minimum 8 characters)
-5. Click "Activate" to complete registration
+Or copy and paste this link into your browser:
+{password_setup_url}{project_mention}
 
-Alternatively, you can use the API endpoint directly:
-POST {activation_url}
+You will be able to:
+- Set a secure password for your account
+- Access your BIMFlow Suite dashboard
+- Start working on your projects
 
-Request body:
-{{
-  "uid": "{uid}",
-  "token": "{token}",
-  "password": "your-new-password",
-  "password_confirm": "your-new-password"
-}}
-
-This token will expire in 24 hours.
+This link will expire in 24 hours.
 
 If you have any questions, please contact us.
-
-Best regards,
-BIMFlow Suite Team
-
-If you did not request this account or have any questions, please contact us.
 
 Best regards,
 BIMFlow Suite Team
@@ -222,11 +271,14 @@ BIMFlow Suite Team
             submission.onboarding_email_sent = True
             submission.save(update_fields=["onboarded_user", "onboarding_email_sent"])
 
-        return user, email_sent
+        return user, email_sent, project
 
     except Exception as e:
         print(f"Failed to create onboarding user: {str(e)}")
-        return None, False
+        import traceback
+
+        traceback.print_exc()
+        return None, False, None
 
 
 def send_onboarding_email(user, email):
