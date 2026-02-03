@@ -4,11 +4,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 
-# Customize admin site
-admin.site.site_header = "BIMFlow Suite Admin"
-admin.site.site_title = "BIMFlow Suite"
-admin.site.index_title = "Welcome to BIMFlow Suite Administration"
-
 # REST Framework & JWT
 from rest_framework import permissions
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -21,6 +16,11 @@ import schema
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_yasg.generators import OpenAPISchemaGenerator
+
+# Customize admin site
+admin.site.site_header = "BIMFlow Suite Admin"
+admin.site.site_title = "BIMFlow Suite"
+admin.site.index_title = "Welcome to BIMFlow Suite Administration"
 
 
 # -------------------------------------------------
@@ -46,7 +46,7 @@ urlpatterns = [
     # Root redirect to Swagger documentation
     path("", lambda request: redirect("swagger-ui"), name="home-redirect"),
     # Django Admin
-    path("admin/", admin.site.urls),
+    path("admin/bimflow/", admin.site.urls),
     # API Routes (v1)
     path("api/v1/", include("apps.users.urls")),
     # REST Framework built-in (for browsable API)

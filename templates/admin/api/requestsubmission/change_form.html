@@ -1,0 +1,17 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons %}
+<div class="submit-row">
+  {% if show_send_response_button %}
+    <a href="{{ send_response_url }}" class="button" style="background-color: #417690;">
+      📧 Send Response
+    </a>
+  {% endif %}
+  {% if show_onboard_button %}
+    <a href="{{ onboard_url }}" class="button" style="background-color: #28a745; color: white;">
+      ✓ Onboard User
+    </a>
+  {% endif %}
+  {{ block.super }}
+</div>
+{% endblock %}

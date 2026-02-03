@@ -3,40 +3,44 @@
 {% block title %}Onboard User - {{ submission.firstname }} {{ submission.lastname }}{% endblock %}
 
 {% block content %}
+<style>
+  #content-main {
+    background-color: #fff;
+  }
+</style>
 <div id="content-main">
-  <h1>Onboard User</h1>
   
-  <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #417690;">
-    <h3>Confirm User Registration</h3>
-    <p>You are about to create a user account for:</p>
+  <div style="background-color: #000; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #417690;">
+    <h2 style="margin-top: 0; color: #417690;">Confirm User Registration</h2>
+    <p style="margin-bottom: 15px;">You are about to create a user account for:</p>
     
-    <table style="width: 100%; margin-top: 15px;">
-      <tr>
-        <td style="font-weight: bold; width: 150px;">Name:</td>
-        <td>{{ submission.firstname }} {{ submission.lastname }}</td>
+    <table style="width: 100%; margin-top: 15px; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="font-weight: bold; width: 150px; padding: 10px 0;">Name:</td>
+        <td style="padding: 10px 0;">{{ submission.firstname }} {{ submission.lastname }}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="font-weight: bold; width: 150px; padding: 10px 0;">Email:</td>
+        <td style="padding: 10px 0;">{{ submission.email }}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="font-weight: bold; width: 150px; padding: 10px 0;">Company:</td>
+        <td style="padding: 10px 0;">{{ submission.company_name }}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="font-weight: bold; width: 150px; padding: 10px 0;">Job Title:</td>
+        <td style="padding: 10px 0;">{{ submission.job_title }}</td>
       </tr>
       <tr>
-        <td style="font-weight: bold;">Email:</td>
-        <td>{{ submission.email }}</td>
-      </tr>
-      <tr>
-        <td style="font-weight: bold;">Company:</td>
-        <td>{{ submission.company_name }}</td>
-      </tr>
-      <tr>
-        <td style="font-weight: bold;">Job Title:</td>
-        <td>{{ submission.job_title }}</td>
-      </tr>
-      <tr>
-        <td style="font-weight: bold;">Request Type:</td>
-        <td>{{ submission.get_request_type_display }}</td>
+        <td style="font-weight: bold; width: 150px; padding: 10px 0;">Request Type:</td>
+        <td style="padding: 10px 0;">{{ submission.get_request_type_display }}</td>
       </tr>
     </table>
   </div>
 
-  <div style="background-color: #fffbcc; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #ffb81c;">
-    <h4>What will happen:</h4>
-    <ul>
+  <div style="background-color: #000; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #417690;">
+    <h3 style="margin-top: 0; color: #417690;">What will happen:</h3>
+    <ul style="margin-bottom: 0;">
       <li>A new user account will be created with username derived from email</li>
       <li>An onboarding email will be sent to <strong>{{ submission.email }}</strong></li>
       <li>Email contains a secure link to set their password</li>
@@ -48,7 +52,7 @@
     {% csrf_token %}
     
     <div class="submit-row">
-      <a href="/admin/api/requestsubmission/{{ submission.id }}/change/" class="button">Cancel</a>
+      <a href="{{ cancel_url }}" class="button">Cancel</a>
       <button type="submit" class="button default" name="_save">Proceed with Onboarding</button>
     </div>
   </form>

@@ -4,13 +4,14 @@ from rest_framework import status, viewsets, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from rest_framework.exceptions import PermissionDenied
 import threading
+
+User = get_user_model()
 from .serializers import (
     LoginSerializer,
     RegisterSerializer,
@@ -270,13 +271,14 @@ class ActivateAccountView(APIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_description="Activate user account by setting password with activation token",
+        operation_description="Activate user account by verifying email, uid, token and setting password",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "uid": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="User ID (base64 encoded)"
+                "email": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="User email address"
                 ),
+                "uid": openapi.Schema(type=openapi.TYPE_STRING, description="User ID"),
                 "token": openapi.Schema(
                     type=openapi.TYPE_STRING, description="Activation token"
                 ),
@@ -287,7 +289,7 @@ class ActivateAccountView(APIView):
                     type=openapi.TYPE_STRING, description="Confirm password"
                 ),
             },
-            required=["uid", "token", "password", "password_confirm"],
+            required=["email", "uid", "token", "password", "password_confirm"],
         ),
         responses={
             200: openapi.Response(
@@ -295,15 +297,8 @@ class ActivateAccountView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
                         "message": openapi.Schema(type=openapi.TYPE_STRING),
-                        "user": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                                "username": openapi.Schema(type=openapi.TYPE_STRING),
-                                "email": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
                     },
                 ),
             ),
@@ -312,15 +307,7 @@ class ActivateAccountView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        "error": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
-            404: openapi.Response(
-                description="User not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
                         "error": openapi.Schema(type=openapi.TYPE_STRING),
                     },
                 ),
@@ -329,49 +316,66 @@ class ActivateAccountView(APIView):
     )
     def post(self, request):
         """
-        Activate user account by verifying token and setting password.
+        Activate user account by verifying email, token and setting password.
         Token must be valid (within 24 hours of generation).
+        Frontend handles redirect based on success/error response.
         """
+        email_encoded = request.data.get("email")
         uid = request.data.get("uid")
         token = request.data.get("token")
         password = request.data.get("password")
         password_confirm = request.data.get("password_confirm")
 
         # Validate inputs
-        if not all([uid, token, password, password_confirm]):
+        if not all([email_encoded, uid, token, password, password_confirm]):
             return Response(
                 {
-                    "error": "Missing required fields: uid, token, password, password_confirm"
+                    "success": False,
+                    "error": "Missing required fields: email, uid, token, password, password_confirm",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if password != password_confirm:
             return Response(
-                {"error": "Passwords do not match"},
+                {"success": False, "error": "Passwords do not match"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if len(password) < 8:
             return Response(
-                {"error": "Password must be at least 8 characters long"},
+                {
+                    "success": False,
+                    "error": "Password must be at least 8 characters long",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            # Decode user ID
+            # Decode user ID and email
             user_id = force_str(urlsafe_base64_decode(uid))
+            email = force_str(urlsafe_base64_decode(email_encoded))
             user = User.objects.get(pk=user_id)
         except (TypeError, ValueError, User.DoesNotExist):
             return Response(
-                {"error": "Invalid activation link"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"success": False, "error": "Invalid activation link"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate email matches
+        if user.email != email:
+            return Response(
+                {"success": False, "error": "Email does not match user account"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Verify token
         if not default_token_generator.check_token(user, token):
             return Response(
-                {"error": "Activation link has expired or is invalid"},
+                {
+                    "success": False,
+                    "error": "Activation link has expired or is invalid",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -382,12 +386,8 @@ class ActivateAccountView(APIView):
 
         return Response(
             {
+                "success": True,
                 "message": "Account activated successfully. You can now login.",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                },
             },
             status=status.HTTP_200_OK,
         )

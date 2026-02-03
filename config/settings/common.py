@@ -135,6 +135,9 @@ if USE_S3:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Custom User Model
+AUTH_USER_MODEL = "users.User"
+
 # REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -189,9 +192,7 @@ GRAPHENE = {
 # BIMFlow settings
 BIMFLOW_IFC_VERSION = "IFC4X3"
 BIMFLOW_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-BIMFLOW_GROQ_API_KEY = os.getenv(
-    "BIMFLOW_GROQ_API_KEY", ""
-)
+BIMFLOW_GROQ_API_KEY = os.getenv("BIMFLOW_GROQ_API_KEY", "")
 BIMFLOW_MAX_IFC_SIZE_MB = 100
 BIMFLOW_RULEPACKS_DIR = BASE_DIR / "compliance_engine" / "rulepacks"
 BIMFLOW_HUGGINGFACE_MODEL = "microsoft/DialoGPT-medium"

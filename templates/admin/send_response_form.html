@@ -5,21 +5,19 @@
 
 {% block content %}
 <div id="content-main">
-  <h1>Send Response to {{ submission.firstname }} {{ submission.lastname }}</h1>
-  
-  <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-    <h3>Request Details</h3>
-    <p><strong>Request Type:</strong> {{ submission.get_request_type_display }}</p>
-    <p><strong>Email:</strong> {{ submission.email }}</p>
-    <p><strong>Company:</strong> {{ submission.company_name }}</p>
-    <p><strong>Submitted:</strong> {{ submission.created_at }}</p>
+  <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #0078d4;">
+    <h2 style="margin-top: 0; color: #0078d4;">Send Response to {{ submission.firstname }} {{ submission.lastname }}</h2>
+    <p style="margin-bottom: 15px; color: #333;"><strong>Request Type:</strong> {{ submission.get_request_type_display }}</p>
+    <p style="margin-bottom: 5px; color: #333;"><strong>Email:</strong> {{ submission.email }}</p>
+    <p style="margin-bottom: 5px; color: #333;"><strong>Company:</strong> {{ submission.company_name }}</p>
+    <p style="margin-bottom: 0; color: #666; font-size: 12px;"><strong>Submitted:</strong> {{ submission.created_at }}</p>
   </div>
 
   <form method="post">
     {% csrf_token %}
     
     <fieldset class="module aligned">
-      <h2>Compose Response</h2>
+      <h3>Compose Response</h3>
       
       <div class="form-row">
         <div>
@@ -29,11 +27,11 @@
             id="admin_response" 
             rows="10" 
             cols="100"
-            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
+            style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; box-sizing: border-box;"
             placeholder="Write your response message here. This will be sent directly to the user."
             required
           ></textarea>
-          <p style="color: #666; font-size: 12px; margin-top: 5px;">
+          <p style="color: #666; font-size: 12px; margin-top: 8px;">
             💡 Tip: Write a professional response that addresses the user's request. The message will be sent to {{ submission.email }}
           </p>
         </div>
@@ -41,7 +39,7 @@
     </fieldset>
 
     <div class="submit-row">
-      <a href="/admin/intent_capture/requestsubmission/{{ submission.id }}/change/" class="button">Cancel</a>
+      <a href="{{ cancel_url }}" class="button">Cancel</a>
       <button type="submit" class="button default" name="_save">Send Response to User</button>
     </div>
   </form>

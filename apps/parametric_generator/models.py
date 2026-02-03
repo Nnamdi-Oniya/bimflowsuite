@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils import timezone
 from apps.users.models import Organization
 
@@ -57,9 +57,9 @@ class Project(models.Model):
         related_name="projects",
         help_text="Organization that owns this project",
     )
-    # Keep user for backward compatibility and to track project creator
+    
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="created_projects",
         help_text="User who created the project",

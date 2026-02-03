@@ -29,7 +29,7 @@ class ComplianceCheckViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def check(self, request):
+    def evaluate_ifc(self, request):
         ifc_id = request.data.get("ifc_id")
         rule_pack_name = request.data.get("rule_pack", None)
         include_clash = request.data.get("include_clash", True)

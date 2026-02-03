@@ -1,5 +1,20 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
+
+
+class User(AbstractUser):
+    """Custom User model with unique email constraint."""
+
+    email = models.EmailField(
+        unique=True, help_text="Email address - must be unique across all users"
+    )
+
+    class Meta:
+        verbose_name = "User"
+        verbose_name_plural = "Users"
+
+    def __str__(self):
+        return self.email or self.username
 
 
 class RequestSubmission(models.Model):
@@ -8,6 +23,7 @@ class RequestSubmission(models.Model):
     REQUEST_TYPE_CHOICES = [
         ("request_demo", "Request a Demo"),
         ("general_enquiries", "General Enquiries"),
+        ("run_model_analysis", "Run Model Analysis"),
         ("compliance_validation", "Compliance Validation"),
         ("other", "Other"),
     ]
@@ -17,7 +33,7 @@ class RequestSubmission(models.Model):
     )
     firstname = models.CharField(max_length=100, help_text="First name")
     lastname = models.CharField(max_length=100, help_text="Last name")
-    email = models.EmailField(help_text="Email address")
+    email = models.EmailField(unique=True, help_text="Email address")
     company_name = models.CharField(max_length=200, help_text="Company name")
     company_address = models.TextField(help_text="Company address")
     country = models.CharField(max_length=100, help_text="Country")
@@ -59,6 +75,12 @@ class RequestSubmission(models.Model):
     onboarding_email_sent = models.BooleanField(
         default=False, help_text="Flag indicating if onboarding email was sent to user"
     )
+    project_params = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text="IFC generation parameters (project spec) submitted via GenerateModelPage",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -76,6 +98,13 @@ class Organization(models.Model):
 
     name = models.CharField(max_length=255, help_text="Organization name")
     slug = models.SlugField(unique=True, help_text="URL-friendly identifier")
+    domain = models.CharField(
+        max_length=255,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="Organization domain (e.g., example.com) - must be unique",
+    )
     description = models.TextField(blank=True, null=True)
     owner = models.ForeignKey(
         User,
