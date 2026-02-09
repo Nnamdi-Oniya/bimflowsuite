@@ -1,5 +1,6 @@
 """Utility functions for apps, including email notifications."""
 
+import logging
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -11,6 +12,9 @@ import secrets
 
 # Get the custom User model
 User = get_user_model()
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 def send_admin_notification(subject, body, recipient_email=None):
@@ -39,7 +43,7 @@ def send_admin_notification(subject, body, recipient_email=None):
         email.send(fail_silently=False)
         return True
     except Exception as e:
-        print(f"Failed to send admin notification: {str(e)}")
+        logger.error(f"Failed to send admin notification: {str(e)}")
         return False
 
 
@@ -201,8 +205,25 @@ def create_onboarding_user(submission):
             try:
                 project_data = submission.project_params
 
+                # Map project type to valid choices
+                project_type_map = {
+                    "building": "IFC_BUILDING",
+                    "road": "IFC_ROAD",
+                    "railway": "IFC_RAILWAY",
+                    "bridge": "IFC_BRIDGE",
+                    "tunnel": "IFC_TUNNEL",
+                    "marine": "IFC_MARINE_FACILITY",
+                    "factory": "IFC_FACTORY",
+                    "process_plant": "IFC_PROCESS_PLANT",
+                    "distribution": "IFC_DISTRIBUTION_SYSTEM",
+                    "site": "IFC_SITE",
+                }
+
+                project_type_input = project_data.get("projectType", "").lower()
+                project_type = project_type_map.get(project_type_input, "OTHER")
+
                 # Only create project if essential fields are present
-                if project_data.get("projectName") or project_data.get("projectType"):
+                if project_data.get("projectName") or project_type:
                     project = Project.objects.create(
                         organization=organization,
                         user=user,
@@ -211,15 +232,17 @@ def create_onboarding_user(submission):
                         ),
                         description=project_data.get("description", ""),
                         project_number=f"ONBOARD-{user.id}-{submission.id}",
-                        status="concept",
+                        phase="concept",
+                        project_type=project_type,
                         client_name=submission.company_name,
-                        country=submission.country,
-                        city_address=project_data.get("location", ""),
-                        building_type=project_data.get("projectType", "other"),
-                        additional_details=str(project_data),
+                        client_type=project_data.get("clientType", ""),
+                        project_address=project_data.get("location", ""),
                     )
+                    # Note: Site details will be created through API endpoint, not during onboarding
             except Exception as e:
-                print(f"Failed to create project from params: {str(e)}")
+                logger.error(
+                    f"Failed to create project from params: {str(e)}", exc_info=True
+                )
 
         # Generate password reset token for activation
         token = default_token_generator.make_token(user)
@@ -274,10 +297,7 @@ BIMFlow Suite Team
         return user, email_sent, project
 
     except Exception as e:
-        print(f"Failed to create onboarding user: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"Failed to create onboarding user: {str(e)}", exc_info=True)
         return None, False, None
 
 
@@ -337,5 +357,5 @@ BIMFlow Suite Team
         return send_admin_notification(subject, body, recipient_email=email)
 
     except Exception as e:
-        print(f"Failed to send onboarding email: {str(e)}")
+        logger.error(f"Failed to send onboarding email: {str(e)}")
         return False

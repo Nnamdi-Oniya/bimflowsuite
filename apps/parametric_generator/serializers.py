@@ -1,32 +1,29 @@
 from rest_framework import serializers
-from .models import Project, GeneratedIFC
+from .models import Project, Site, GeneratedIFC
+from .schemas import validate_type_metadata
 
 
-class ProjectSerializer(serializers.ModelSerializer):
-    """Serializer for BIM Project with comprehensive metadata"""
+class SiteSerializer(serializers.ModelSerializer):
+    """Serializer for Site model - location-specific project information"""
 
     class Meta:
-        model = Project
+        model = Site
         fields = [
             "id",
-            # Basic info
-            "name",
-            "description",
-            "project_number",
-            "status",
-            # Client
-            "client_name",
+            "project",
+            "site_name",
+            # Type & Metadata
+            "project_type",
+            "type_metadata",
             # Location
-            "country",
-            "city_address",
+            "address",
+            # Geometry
             "latitude",
             "longitude",
-            "elevation_above_sea",
+            "elevation",
             "coordinate_reference_system",
-            "true_north",
+            "true_north_angle",
             "project_north_angle",
-            # Building
-            "building_type",
             # Units & Precision
             "length_unit",
             "area_unit",
@@ -38,15 +35,60 @@ class ProjectSerializer(serializers.ModelSerializer):
             # Environmental
             "climate_zone",
             "design_temperature",
-            "design_target",
-            # Materials
-            "materials",
-            # Authoring
-            "authoring_name",
-            "authoring_company",
+            # Materials & Regulatory
+            "material_system",
+            "regulatory_requirements",
+            # Metadata
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, data):
+        """Validate type_metadata against project_type schema"""
+        project_type = data.get("project_type")
+        type_metadata = data.get("type_metadata", {})
+
+        if project_type and type_metadata:
+            is_valid, errors = validate_type_metadata(project_type, type_metadata)
+            if not is_valid:
+                raise serializers.ValidationError(
+                    {
+                        "type_metadata": f"Invalid metadata for {project_type}: {'; '.join(errors)}"
+                    }
+                )
+
+        return data
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    """Serializer for BIM Project with comprehensive metadata"""
+
+    class Meta:
+        model = Project
+        fields = [
+            "id",
+            "organization",
+            # Basic info
+            "name",
+            "description",
+            "project_number",
+            "phase",
+            # Project Type
+            "project_type",
+            # Client
+            "client_name",
+            "client_type",
+            # Project Scale & Risk
+            "project_scale",
+            "risk_classification",
+            "project_address",
+            # Schedule
+            "project_start_date",
+            "construction_start_date",
+            "expected_completion_date",
+            # Governance
             "approval_status",
-            "revision_id",
-            "change_description",
             # Metadata
             "created_at",
             "updated_at",
@@ -107,9 +149,10 @@ class GeneratedIFCSerializer(serializers.ModelSerializer):
 
 
 class ProjectDetailSerializer(ProjectSerializer):
-    """Extended serializer for project detail view with generated IFCs"""
+    """Extended serializer for project detail view with generated IFCs and sites"""
 
     generated_ifcs = GeneratedIFCSerializer(many=True, read_only=True)
+    sites = SiteSerializer(many=True, read_only=True)
 
     class Meta(ProjectSerializer.Meta):
-        fields = ProjectSerializer.Meta.fields + ["generated_ifcs"]
+        fields = ProjectSerializer.Meta.fields + ["generated_ifcs", "sites"]

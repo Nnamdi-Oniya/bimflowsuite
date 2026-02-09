@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.forms import UserCreationForm
 from django.utils.html import format_html
 from django.urls import path, reverse
 from django.shortcuts import render
@@ -10,6 +11,21 @@ from helper.utils import (
     create_onboarding_user,
     send_onboarding_email,
 )
+
+
+class CustomUserCreationForm(UserCreationForm):
+    """Custom UserCreationForm that creates users as inactive by default"""
+
+    class Meta:
+        model = User
+        fields = ("username", "email")
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.is_active = False
+        if commit:
+            user.save()
+        return user
 
 
 @admin.register(User)
@@ -28,6 +44,7 @@ class UserAdmin(BaseUserAdmin):
     ]
     list_filter = ["is_active", "is_staff", "is_superuser", "date_joined"]
     search_fields = ["username", "email", "first_name", "last_name"]
+    add_form = CustomUserCreationForm
 
 
 @admin.register(RequestSubmission)
