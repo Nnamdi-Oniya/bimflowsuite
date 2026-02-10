@@ -46,6 +46,13 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ["username", "email", "first_name", "last_name"]
     add_form = CustomUserCreationForm
 
+    def save_model(self, request, obj, form, change):
+        """Override to ensure new users are created as inactive"""
+        # If this is a new user (change=False), set is_active to False
+        if not change:
+            obj.is_active = False
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(RequestSubmission)
 class RequestSubmissionAdmin(admin.ModelAdmin):

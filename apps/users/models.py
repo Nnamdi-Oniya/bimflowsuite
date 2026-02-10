@@ -6,10 +6,40 @@ import secrets
 
 
 class User(AbstractUser):
-    """Custom User model with unique email constraint."""
+    """Custom User model with unique email constraint and profile fields."""
 
     email = models.EmailField(
         unique=True, help_text="Email address - must be unique across all users"
+    )
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="User phone number",
+    )
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="User location (city/country)",
+    )
+    company = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Company name",
+    )
+    job_title = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        help_text="Job title/position",
+    )
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        help_text="User profile picture",
     )
 
     class Meta:

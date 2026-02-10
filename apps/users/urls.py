@@ -8,6 +8,7 @@ from .views import (
     OrganizationMemberViewSet,
     ForgotPasswordView,
     ResetPasswordView,
+    UserProfileView,
 )
 
 # Create router for viewsets
@@ -33,6 +34,7 @@ urlpatterns = [
         RequestSubmissionView.as_view(),
         name="auth_request_submission",
     ),
+    path("user/profile/", UserProfileView.as_view(), name="user_profile"),
     path("", include(router.urls)),
     path("", include("apps.parametric_generator.urls")),
     path("compliance/", include("apps.compliance_engine.urls")),
