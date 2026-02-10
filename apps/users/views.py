@@ -9,7 +9,10 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from rest_framework.exceptions import PermissionDenied
+from django.core.mail import send_mail
+from django.conf import settings
 import threading
+import logging
 
 User = get_user_model()
 from .serializers import (
@@ -19,11 +22,15 @@ from .serializers import (
     OrganizationSerializer,
     OrganizationDetailSerializer,
     OrganizationMemberSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
 )
-from .models import Organization, OrganizationMember
+from .models import Organization, OrganizationMember, PasswordResetToken
 from helper.utils import send_request_notification
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+
+logger = logging.getLogger(__name__)
 
 
 class LoginView(APIView):
@@ -266,19 +273,22 @@ class RequestSubmissionView(APIView):
 
 
 class ActivateAccountView(APIView):
-    """Activate user account and set password"""
+    """Activate user account by setting password and marking user as active"""
 
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_description="Activate user account by verifying email, uid, token and setting password",
+        operation_description="Activate user account by verifying email, uid, token and setting password. Marks user as active.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 "email": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="User email address"
+                    type=openapi.TYPE_STRING,
+                    description="User email address (base64 encoded)",
                 ),
-                "uid": openapi.Schema(type=openapi.TYPE_STRING, description="User ID"),
+                "uid": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="User ID (base64 encoded)"
+                ),
                 "token": openapi.Schema(
                     type=openapi.TYPE_STRING, description="Activation token"
                 ),
@@ -317,6 +327,11 @@ class ActivateAccountView(APIView):
     def post(self, request):
         """
         Activate user account by verifying email, token and setting password.
+        This endpoint:
+        1. Validates the activation token (must be valid and within 24 hours)
+        2. Sets the user's password
+        3. Marks the user as active (is_active = True)
+
         Token must be valid (within 24 hours of generation).
         Frontend handles redirect based on success/error response.
         """
@@ -581,3 +596,176 @@ class OrganizationMemberViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(org_member)
         return Response(serializer.data)
+
+
+class ForgotPasswordView(APIView):
+    """View for requesting password reset token via email."""
+
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Request password reset token. Email will be sent if account exists. No response indicates success (security best practice).",
+        request_body=ForgotPasswordSerializer,
+        responses={
+            204: openapi.Response(
+                description="Password reset email sent (if account exists)",
+            ),
+        },
+    )
+    def post(self, request):
+        """
+        Request password reset token for a registered email.
+        If email doesn't match any registered account, silently return 204 (security best practice).
+        If email exists, sends reset token via email.
+        """
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            # Return 204 even if invalid data (silent fail for security)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        email = serializer.validated_data["email"]
+
+        # Check if user exists with this email
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # Create reset token
+        reset_token = PasswordResetToken.create_reset_token(user)
+
+        # Send email in background thread
+        email_thread = threading.Thread(
+            target=self._send_reset_email, args=(user, reset_token), daemon=True
+        )
+        email_thread.start()
+
+        # Always return 204 for security (don't reveal if user exists)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _send_reset_email(self, user, reset_token):
+        """Send password reset email with token."""
+        try:
+            # Construct reset URL for frontend
+            frontend_base_url = settings.BASE_URL
+            reset_url = f"{frontend_base_url}/reset-password?token={reset_token.token}"
+
+            subject = "Password Reset Request - BIMFlow Suite"
+            message = f"""
+Hello {user.first_name or user.username},
+
+We received a request to reset your password for your BIMFlow Suite account.
+Click the link below to reset your password:
+
+{reset_url}
+
+This link will expire in 24 hours.
+
+If you did not request a password reset, please ignore this email.
+
+Best regards,
+BIMFlow Suite Team
+            """
+
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            logger.info(f"Password reset email sent to {user.email}")
+        except Exception as e:
+            logger.error(
+                f"Failed to send password reset email to {user.email}: {str(e)}"
+            )
+
+
+class ResetPasswordView(APIView):
+    """View for resetting password with valid token."""
+
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Reset password using valid reset token",
+        request_body=ResetPasswordSerializer,
+        responses={
+            200: openapi.Response(
+                description="Password reset successful",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        "message": openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Bad request - invalid token or password",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        "error": openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+        },
+    )
+    def post(self, request):
+        """
+        Reset password using a valid token.
+        Token must be valid (not expired and not previously used).
+        """
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "success": False,
+                    "error": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token_str = serializer.validated_data["token"]
+        new_password = serializer.validated_data["password"]
+
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token_str)
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "error": "Invalid or expired reset token",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if token is valid
+        if not reset_token.is_valid():
+            return Response(
+                {
+                    "success": False,
+                    "error": "Reset token has expired or has already been used",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Set new password
+        user = reset_token.user
+        user.set_password(new_password)
+        user.save()
+
+        # Mark token as used
+        reset_token.is_used = True
+        reset_token.save()
+
+        logger.info(f"Password reset successful for user {user.email}")
+
+        return Response(
+            {
+                "success": True,
+                "message": "Password has been reset successfully. You can now login with your new password.",
+            },
+            status=status.HTTP_200_OK,
+        )

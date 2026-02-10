@@ -6,11 +6,12 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 import logging
 
-from .models import Project, GeneratedIFC
+from .models import Project, GeneratedIFC, Site
 from .serializers import (
     ProjectSerializer,
     ProjectDetailSerializer,
     GeneratedIFCSerializer,
+    SiteSerializer,
 )
 from apps.users.models import Organization, OrganizationMember
 
@@ -86,35 +87,36 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return self.serializer_class
 
     def create(self, request, *args, **kwargs):
-        """Create new project (requires organization and can_create_projects permission)"""
-        organization_id = request.data.get("organization")
-        if not organization_id:
-            return Response(
-                {"error": "organization is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        """Create new project (auto-injects organization from user's membership)"""
 
-        # Check if user is member of organization with create permission
-        try:
-            organization = Organization.objects.get(id=organization_id)
-            member = OrganizationMember.objects.get(
-                organization=organization, user=request.user, is_active=True
-            )
-            if not member.can_create_projects:
-                raise PermissionDenied(
-                    "You don't have permission to create projects in this organization"
-                )
-        except Organization.DoesNotExist:
+        # Get user's organization (user can only belong to one organization at a time)
+        org_member = (
+            OrganizationMember.objects.filter(user=request.user, is_active=True)
+            .select_related("organization")
+            .first()
+        )
+
+        if not org_member:
             return Response(
-                {"error": "Organization not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        except OrganizationMember.DoesNotExist:
-            return Response(
-                {"error": "You are not a member of this organization"},
+                {"error": "You are not a member of any organization"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = self.get_serializer(data=request.data)
+        if not org_member.can_edit_projects:
+            return Response(
+                {
+                    "error": "You don't have permission to create projects in your organization"
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Add organization to request data
+        data = (
+            request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        )
+        data["organization"] = org_member.organization.id
+
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
@@ -123,7 +125,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        """Set user to current request user and save organization"""
+        """Set user to current request user when saving"""
         serializer.save(user=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
@@ -424,3 +426,96 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+class SiteViewSet(viewsets.ModelViewSet):
+    """CRUD endpoints for Sites within projects (organization-based access)"""
+
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
+    serializer_class = SiteSerializer
+    filterset_fields = ["project", "project_type", "coordinate_reference_system"]
+    search_fields = ["site_name", "address"]
+    ordering_fields = ["created_at", "updated_at", "site_name"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        """Return only sites from projects in organizations the user is a member of"""
+        if getattr(self, "swagger_fake_view", False):
+            return Site.objects.none()
+        user_organizations = OrganizationMember.objects.filter(
+            user=self.request.user, is_active=True
+        ).values_list("organization", flat=True)
+        return Site.objects.filter(project__organization__in=user_organizations)
+
+    def create(self, request, *args, **kwargs):
+        """Create new site for an existing project"""
+        project_id = request.data.get("project")
+
+        if not project_id:
+            return Response(
+                {"error": "project is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get the project and verify user has access
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Project not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Check if user is member of project's organization
+        if not OrganizationMember.objects.filter(
+            organization=project.organization, user=request.user, is_active=True
+        ).exists():
+            raise PermissionDenied(
+                "You don't have permission to create sites for this project"
+            )
+
+        # Check if user has edit_projects permission
+        member = OrganizationMember.objects.get(
+            organization=project.organization, user=request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied(
+                "You don't have permission to create sites in this organization"
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
+
+    def perform_update(self, serializer):
+        """Update site with permission checks"""
+        site = self.get_object()
+
+        # Verify user can edit projects in this organization
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied(
+                "You don't have permission to edit sites in this organization"
+            )
+
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete site (requires can_edit_projects or can_delete_projects permission)"""
+        site = self.get_object()
+
+        # Check permissions
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=request.user
+        )
+        if not member.can_delete_projects and not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to delete sites")
+
+        self.perform_destroy(site)
+        return Response(status=status.HTTP_204_NO_CONTENT)

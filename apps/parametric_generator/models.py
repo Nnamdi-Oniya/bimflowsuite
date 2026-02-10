@@ -1,37 +1,221 @@
 from django.db import models
 from django.conf import settings
-from django.utils import timezone
 from apps.users.models import Organization
 
 
 class Project(models.Model):
-    """Comprehensive BIM Project with detailed metadata"""
+    """
+    BIM Project Model - Project-level information
 
-    # Project Status Choices
-    PROJECT_STATUS_CHOICES = [
+    Stores project metadata including client info, project schedule, and scale.
+    Sites contain location-specific information (geometry, units, materials).
+    A project can have multiple sites (e.g., multi-phase development, phased construction).
+
+    Structure:
+    - Basics: name, description, project_number, phase, project_type
+    - Client: client_name, client_type, project_scale, risk_classification
+    - Schedule: project_start_date, construction_start_date, expected_completion_date
+    - Type Metadata: type_metadata for flexible type-specific details
+    """
+
+    # ==================== PROJECT TYPE CHOICES ====================
+    PROJECT_TYPE_CHOICES = [
+        ("IFC_BUILDING", "Building"),
+        ("IFC_ROAD", "Road"),
+        ("IFC_RAILWAY", "Railway"),
+        ("IFC_BRIDGE", "Bridge"),
+        ("IFC_TUNNEL", "Tunnel"),
+        ("IFC_MARINE_FACILITY", "Marine Facility"),
+        ("IFC_FACTORY", "Factory"),
+        ("IFC_PROCESS_PLANT", "Process Plant"),
+        ("IFC_DISTRIBUTION_SYSTEM", "Distribution System"),
+        ("IFC_SITE", "Site / Land Project"),
+        ("OTHER", "Other / Custom"),
+    ]
+
+    PROJECT_PHASE_CHOICES = [
         ("concept", "Concept"),
         ("schematic", "Schematic"),
         ("detailed", "Detailed Design"),
         ("as-built", "As-Built"),
     ]
 
-    # Building Type Choices
-    BUILDING_TYPE_CHOICES = [
-        ("residential", "Residential"),
-        ("office", "Office"),
-        ("hospital", "Hospital"),
-        ("educational", "Educational"),
-        ("retail", "Retail"),
-        ("industrial", "Industrial"),
-        ("mixed-use", "Mixed-Use"),
-        ("other", "Other"),
+    PROJECT_SCALE_CHOICES = [
+        ("small", "Small"),
+        ("medium", "Medium"),
+        ("large", "Large"),
     ]
 
+    CLIENT_TYPE_CHOICES = [
+        ("private", "Private"),
+        ("government", "Government"),
+        ("ngo", "NGO"),
+        ("corporate", "Corporate"),
+    ]
+
+    RISK_CLASSIFICATION_CHOICES = [
+        ("low", "Low Risk"),
+        ("medium", "Medium Risk"),
+        ("high", "High Risk"),
+        ("critical", "Critical Risk"),
+    ]
+
+    # ==================== CORE RELATIONSHIPS ====================
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="projects",
+        help_text="Organization that owns this project",
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_projects",
+        help_text="User who created the project",
+    )
+
+    # ==================== PROJECT BASICS ====================
+    name = models.CharField(
+        max_length=255,
+        help_text="Project name",
+    )
+    project_number = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Unique project identifier/number",
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Detailed project description",
+    )
+    phase = models.CharField(
+        max_length=20,
+        choices=PROJECT_PHASE_CHOICES,
+        default="concept",
+        help_text="Current project design phase",
+    )
+
+    # ==================== PROJECT TYPE ====================
+    project_type = models.CharField(
+        max_length=50,
+        choices=PROJECT_TYPE_CHOICES,
+        help_text="Primary project type (Building, Road, Bridge, etc.)",
+    )
+
+    # ==================== CLIENT INFORMATION ====================
+    client_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name of project client/owner",
+    )
+    client_type = models.CharField(
+        max_length=50,
+        choices=CLIENT_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Type of client (Private, Government, NGO, Corporate)",
+    )
+
+    # ==================== PROJECT SCALE & RISK ====================
+    project_scale = models.CharField(
+        max_length=20,
+        choices=PROJECT_SCALE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Scale of project (Small, Medium, Large)",
+    )
+    risk_classification = models.CharField(
+        max_length=20,
+        choices=RISK_CLASSIFICATION_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Risk level classification for project",
+    )
+
+    project_address = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Principal project address",
+    )
+
+    # ==================== PROJECT SCHEDULE ====================
+    project_start_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Project initiation date",
+    )
+    construction_start_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Planned or actual construction start date",
+    )
+    expected_completion_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Expected project completion date",
+    )
+
+    # ==================== PROJECT GOVERNANCE ====================
+    approval_status = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Approval status (e.g., Pending, Approved, Rejected)",
+    )
+
+    # ==================== METADATA ====================
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Project creation timestamp",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last modification timestamp",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["project_number"]),
+            models.Index(fields=["phase"]),
+            models.Index(fields=["project_type"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.project_number})"
+
+
+class Site(models.Model):
+    """
+    Site Model - Location-specific project information
+
+    Represents a specific construction/development site for a project.
+    A project can have multiple sites (e.g., multi-phase development).
+    Contains location, geometry, units, materials, and site-specific configuration.
+    """
+
     # Unit Choices
-    LENGTH_UNIT_CHOICES = [("mm", "Millimeters"), ("m", "Meters")]
-    AREA_UNIT_CHOICES = [("m2", "Square Meters"), ("mm2", "Square Millimeters")]
-    VOLUME_UNIT_CHOICES = [("m3", "Cubic Meters"), ("mm3", "Cubic Millimeters")]
-    ANGLE_UNIT_CHOICES = [("degree", "Degrees"), ("radian", "Radians")]
+    LENGTH_UNIT_CHOICES = [
+        ("mm", "Millimeters"),
+        ("m", "Meters"),
+    ]
+    AREA_UNIT_CHOICES = [
+        ("m2", "Square Meters"),
+        ("mm2", "Square Millimeters"),
+    ]
+    VOLUME_UNIT_CHOICES = [
+        ("m3", "Cubic Meters"),
+        ("mm3", "Cubic Millimeters"),
+    ]
+    ANGLE_UNIT_CHOICES = [
+        ("degree", "Degrees"),
+        ("radian", "Radians"),
+    ]
 
     # IFC Schema Choices
     IFC_SCHEMA_CHOICES = [
@@ -49,95 +233,108 @@ class Project(models.Model):
         ("custom", "Custom CRS"),
     ]
 
-    # ==================== BASIC INFORMATION ====================
-    # Organization-based access
-    organization = models.ForeignKey(
-        Organization,
+    # ==================== CORE RELATIONSHIPS ====================
+    project = models.ForeignKey(
+        Project,
         on_delete=models.CASCADE,
-        related_name="projects",
-        help_text="Organization that owns this project",
-    )
-    
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="created_projects",
-        help_text="User who created the project",
+        related_name="sites",
+        help_text="Project this site belongs to",
     )
 
-    name = models.CharField(max_length=255, help_text="Project name")
-    description = models.TextField(
-        blank=True, null=True, help_text="Project description"
-    )
-    project_number = models.CharField(
-        max_length=100, unique=True, help_text="Project number/ID"
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=PROJECT_STATUS_CHOICES,
-        default="concept",
-        help_text="Project stage",
+    # ==================== SITE BASICS ====================
+    site_name = models.CharField(
+        max_length=255,
+        help_text="Site name or identifier",
     )
 
-    # ==================== CLIENT/OWNER ====================
-    client_name = models.CharField(
-        max_length=255, blank=True, null=True, help_text="Client/Owner name"
+    # ==================== PROJECT TYPE & METADATA ====================
+    project_type = models.CharField(
+        max_length=50,
+        choices=Project.PROJECT_TYPE_CHOICES,
+        help_text="Primary site/project type (Building, Road, Bridge, etc.)",
+    )
+
+    type_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Type-specific site details. Structure varies by project_type.",
     )
 
     # ==================== LOCATION INFORMATION ====================
-    country = models.CharField(max_length=100, blank=True, null=True)
-    city_address = models.CharField(max_length=255, blank=True, null=True)
+    address = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Site address",
+    )
+
+    # ==================== GEOMETRY & COORDINATES ====================
     latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, blank=True, null=True
+        max_digits=9,
+        decimal_places=6,
+        blank=True,
+        null=True,
+        help_text="Site latitude in decimal degrees",
     )
     longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, blank=True, null=True
+        max_digits=9,
+        decimal_places=6,
+        blank=True,
+        null=True,
+        help_text="Site longitude in decimal degrees",
     )
-    elevation_above_sea = models.DecimalField(
+    elevation = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         blank=True,
         null=True,
-        help_text="Elevation in meters",
+        help_text="Site elevation above sea level (meters)",
     )
+
     coordinate_reference_system = models.CharField(
         max_length=50,
         choices=CRS_CHOICES,
         default="epsg:4326",
-        help_text="Coordinate Reference System",
+        help_text="Coordinate Reference System (CRS/EPSG code)",
     )
-    true_north = models.DecimalField(
+
+    true_north_angle = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        help_text="True north in degrees",
+        help_text="True north direction in degrees (0-360)",
     )
     project_north_angle = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        help_text="Project north angle in degrees",
-    )
-
-    # ==================== BUILDING INFORMATION ====================
-    building_type = models.CharField(
-        max_length=50,
-        choices=BUILDING_TYPE_CHOICES,
-        blank=True,
-        null=True,
-        help_text="Building type/category",
+        help_text="Project north offset from true north in degrees",
     )
 
     # ==================== UNITS & PRECISION ====================
     length_unit = models.CharField(
-        max_length=10, choices=LENGTH_UNIT_CHOICES, default="m"
+        max_length=10,
+        choices=LENGTH_UNIT_CHOICES,
+        default="m",
+        help_text="Unit for length measurements",
     )
-    area_unit = models.CharField(max_length=10, choices=AREA_UNIT_CHOICES, default="m2")
+    area_unit = models.CharField(
+        max_length=10,
+        choices=AREA_UNIT_CHOICES,
+        default="m2",
+        help_text="Unit for area measurements",
+    )
     volume_unit = models.CharField(
-        max_length=10, choices=VOLUME_UNIT_CHOICES, default="m3"
+        max_length=10,
+        choices=VOLUME_UNIT_CHOICES,
+        default="m3",
+        help_text="Unit for volume measurements",
     )
     angle_unit = models.CharField(
-        max_length=20, choices=ANGLE_UNIT_CHOICES, default="degree"
+        max_length=20,
+        choices=ANGLE_UNIT_CHOICES,
+        default="degree",
+        help_text="Unit for angle measurements",
     )
     precision = models.DecimalField(
         max_digits=5,
@@ -148,13 +345,20 @@ class Project(models.Model):
 
     # ==================== IFC CONFIGURATION ====================
     ifc_schema_version = models.CharField(
-        max_length=20, choices=IFC_SCHEMA_CHOICES, default="ifc4x3"
+        max_length=20,
+        choices=IFC_SCHEMA_CHOICES,
+        default="ifc4x3",
+        help_text="IFC schema version for generation",
     )
 
-    # ==================== ENVIRONMENTAL/DESIGN ====================
+    # ==================== MATERIALS & ENVIRONMENTAL ====================
     climate_zone = models.CharField(
-        max_length=100, blank=True, null=True, help_text="Climate zone classification"
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Climate zone classification (e.g., temperate, tropical, arctic)",
     )
+
     design_temperature = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -162,76 +366,52 @@ class Project(models.Model):
         null=True,
         help_text="Design temperature in Celsius",
     )
-    design_target = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        help_text="Design performance target or goals",
-    )
 
-    # ==================== MATERIALS (JSON) ====================
-    materials = models.JSONField(
+    material_system = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Material specifications: walls, slabs, layers",
+        help_text="Material system and specifications",
     )
     # Example structure:
     # {
-    #   "walls": {
-    #     "exterior": {
-    #       "layers": [
-    #         {"name": "Brick", "thickness": 0.12, "thermal_conductivity": 0.6},
-    #         {"name": "Insulation", "thickness": 0.1, "thermal_conductivity": 0.04}
-    #       ],
-    #       "fire_rating": "A1",
-    #       "thermal_properties": {"u_value": 0.25}
-    #     }
-    #   },
-    #   "slabs": {...}
+    #   "structural": {"primary": "steel", "secondary": "concrete"},
+    #   "exterior": {"envelope": "curtain_wall", "roofing": "metal_deck"},
+    #   "interior": {"walls": "drywall", "flooring": "polished_concrete"}
     # }
 
-    # ==================== AUTHORING & APPROVAL ====================
-    authoring_name = models.CharField(
-        max_length=255,
+    # ==================== REPORTING & REGULATORY ====================
+    regulatory_requirements = models.JSONField(
+        default=dict,
         blank=True,
-        null=True,
-        help_text="Name of project author/creator",
+        help_text="Applicable codes, standards, and regulatory requirements",
     )
-    authoring_company = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        help_text="Company that authored the project",
-    )
-    approval_status = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-        help_text="e.g., Pending, Approved, Rejected",
-    )
-    revision_id = models.CharField(
-        max_length=50, blank=True, null=True, help_text="Current revision identifier"
-    )
-    change_description = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Description of changes in this revision",
-    )
+    # Example structure:
+    # {
+    #   "building_codes": ["IBC_2021", "IECC_2021"],
+    #   "standards": ["ASHRAE_90_1", "NFPA_101"],
+    #   "certifications": ["LEED_v4", "WELL"],
+    #   "accessibility": "ADA_2010"
+    # }
 
     # ==================== METADATA ====================
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Site creation timestamp",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last modification timestamp",
+    )
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["user", "created_at"]),
-            models.Index(fields=["project_number"]),
-            models.Index(fields=["status"]),
+            models.Index(fields=["project", "created_at"]),
+            models.Index(fields=["coordinate_reference_system"]),
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.project_number})"
+        return f"{self.site_name} ({self.project.name})"
 
 
 class GeneratedIFC(models.Model):
@@ -300,7 +480,7 @@ class GeneratedIFC(models.Model):
     asset_type = models.CharField(max_length=50, choices=ASSET_TYPE_CHOICES)
     ifc_schema_version = models.CharField(
         max_length=20,
-        choices=Project.IFC_SCHEMA_CHOICES,
+        choices=Site.IFC_SCHEMA_CHOICES,
         help_text="IFC schema version used for generation",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")

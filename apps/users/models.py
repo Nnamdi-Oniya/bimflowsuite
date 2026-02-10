@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from datetime import timedelta
+import secrets
 
 
 class User(AbstractUser):
@@ -17,11 +20,67 @@ class User(AbstractUser):
         return self.email or self.username
 
 
+class PasswordResetToken(models.Model):
+    """Model for storing password reset tokens with expiry."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
+        help_text="User requesting password reset",
+    )
+    token = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Unique reset token",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Token creation timestamp",
+    )
+    expires_at = models.DateTimeField(
+        help_text="Token expiry timestamp",
+    )
+    is_used = models.BooleanField(
+        default=False,
+        help_text="Whether token has been used for password reset",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["token"]),
+            models.Index(fields=["user", "is_used"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def is_valid(self):
+        """Check if token is valid (not expired and not used)."""
+        return not self.is_used and timezone.now() < self.expires_at
+
+    @classmethod
+    def create_reset_token(cls, user):
+        """Create a new reset token for a user (valid for 30 minutes)."""
+        # Invalidate any existing tokens for this user
+        cls.objects.filter(user=user, is_used=False).update(is_used=True)
+
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(minutes=30)
+
+        return cls.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at,
+        )
+
+    def __str__(self):
+        return f"Reset token for {self.user.email}"
+
+
 class RequestSubmission(models.Model):
     """Model for request submissions from the frontend."""
 
     REQUEST_TYPE_CHOICES = [
-        ("request_demo", "Request a Demo"),
+        ("request_demo", "Demo Request"),
         ("general_enquiries", "General Enquiries"),
         ("run_model_analysis", "Run Model Analysis"),
         ("compliance_validation", "Compliance Validation"),

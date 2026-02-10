@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count
-from .models import Project, GeneratedIFC
+from .models import Project, Site, GeneratedIFC
 
 
 @admin.register(Project)
@@ -12,14 +12,21 @@ class ProjectAdmin(admin.ModelAdmin):
     list_display = [
         "project_number",
         "name_truncated",
-        "status_colored",
+        "phase_colored",
+        "project_type",
         "client_name",
-        "building_type",
         "ifc_count",
         "created_at",
         "user",
     ]
-    list_filter = ["status", "building_type", "ifc_schema_version", "created_at"]
+    list_filter = [
+        "phase",
+        "project_type",
+        "client_type",
+        "project_scale",
+        "risk_classification",
+        "created_at",
+    ]
     search_fields = ["name", "project_number", "client_name", "user__email"]
     readonly_fields = ["created_at", "updated_at", "ifc_count_display"]
 
@@ -32,78 +39,51 @@ class ProjectAdmin(admin.ModelAdmin):
                     "name",
                     "description",
                     "project_number",
-                    "status",
+                    "phase",
                 )
             },
         ),
         (
-            "Client & Location",
+            "Client Information",
             {
                 "fields": (
                     "client_name",
-                    "country",
-                    "city_address",
-                    "latitude",
-                    "longitude",
-                    "elevation_above_sea",
-                    "coordinate_reference_system",
-                    "true_north",
-                    "project_north_angle",
+                    "client_type",
+                    "project_address",
                 )
             },
         ),
         (
-            "Building Information",
+            "Project Scale & Risk",
             {
                 "fields": (
-                    "building_type",
-                    "climate_zone",
-                    "design_temperature",
-                    "design_target",
+                    "project_scale",
+                    "risk_classification",
                 )
             },
         ),
         (
-            "Units & Precision",
+            "Project Schedule",
             {
                 "fields": (
-                    "length_unit",
-                    "area_unit",
-                    "volume_unit",
-                    "angle_unit",
-                    "precision",
+                    "project_start_date",
+                    "construction_start_date",
+                    "expected_completion_date",
                 )
             },
         ),
         (
-            "IFC Configuration",
-            {
-                "fields": ("ifc_schema_version",),
-            },
-        ),
-        (
-            "Materials & Specifications",
-            {
-                "fields": ("materials",),
-                "classes": ("collapse",),
-            },
-        ),
-        (
-            "Authoring & Approval",
-            {
-                "fields": (
-                    "authoring_name",
-                    "authoring_company",
-                    "approval_status",
-                    "revision_id",
-                    "change_description",
-                )
-            },
+            "Governance",
+            {"fields": ("approval_status",)},
         ),
         (
             "Metadata",
             {
-                "fields": ("created_at", "updated_at", "ifc_count_display"),
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                    "ifc_count_display",
+                ),
                 "classes": ("collapse",),
             },
         ),
@@ -127,22 +107,22 @@ class ProjectAdmin(admin.ModelAdmin):
 
     name_truncated.short_description = "Project Name"
 
-    def status_colored(self, obj):
-        """Display status with color coding"""
+    def phase_colored(self, obj):
+        """Display phase with color coding"""
         colors = {
             "concept": "#FF9800",  # Orange
             "schematic": "#2196F3",  # Blue
             "detailed": "#4CAF50",  # Green
             "as-built": "#9C27B0",  # Purple
         }
-        color = colors.get(obj.status, "#999")
+        color = colors.get(obj.phase, "#999")
         return format_html(
             '<span style="background-color: {}; color: white; padding: 5px 10px; border-radius: 3px;">{}</span>',
             color,
-            obj.get_status_display(),
+            obj.get_phase_display(),
         )
 
-    status_colored.short_description = "Status"
+    phase_colored.short_description = "Phase"
 
     def ifc_count(self, obj):
         """Display count of generated IFCs"""
@@ -175,28 +155,147 @@ class ProjectAdmin(admin.ModelAdmin):
     ifc_count_display.short_description = "IFC Generation Summary"
 
     def mark_as_concept(self, request, queryset):
-        count = queryset.update(status="concept")
+        count = queryset.update(phase="concept")
         self.message_user(request, f"{count} projects marked as Concept")
 
     mark_as_concept.short_description = "Mark selected as Concept"
 
     def mark_as_schematic(self, request, queryset):
-        count = queryset.update(status="schematic")
+        count = queryset.update(phase="schematic")
         self.message_user(request, f"{count} projects marked as Schematic")
 
     mark_as_schematic.short_description = "Mark selected as Schematic"
 
     def mark_as_detailed(self, request, queryset):
-        count = queryset.update(status="detailed")
+        count = queryset.update(phase="detailed")
         self.message_user(request, f"{count} projects marked as Detailed")
 
     mark_as_detailed.short_description = "Mark selected as Detailed Design"
 
     def mark_as_asbuilt(self, request, queryset):
-        count = queryset.update(status="as-built")
+        count = queryset.update(phase="as-built")
         self.message_user(request, f"{count} projects marked as As-Built")
 
     mark_as_asbuilt.short_description = "Mark selected as As-Built"
+
+
+@admin.register(Site)
+class SiteAdmin(admin.ModelAdmin):
+    """Admin interface for BIM project sites"""
+
+    list_display = [
+        "site_name",
+        "project_link",
+        "address",
+        "latitude",
+        "longitude",
+        "ifc_schema_version",
+        "created_at",
+    ]
+    list_filter = [
+        "ifc_schema_version",
+        "coordinate_reference_system",
+        "length_unit",
+        "created_at",
+    ]
+    search_fields = ["site_name", "address", "project__name"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Site Basics",
+            {
+                "fields": (
+                    "project",
+                    "site_name",
+                )
+            },
+        ),
+        (
+            "Project Type & Metadata",
+            {
+                "fields": (
+                    "project_type",
+                    "type_metadata",
+                )
+            },
+        ),
+        (
+            "Location",
+            {
+                "fields": ("address",),
+            },
+        ),
+        (
+            "Geometry & Coordinates",
+            {
+                "fields": (
+                    "latitude",
+                    "longitude",
+                    "elevation",
+                    "coordinate_reference_system",
+                    "true_north_angle",
+                    "project_north_angle",
+                )
+            },
+        ),
+        (
+            "Units & Precision",
+            {
+                "fields": (
+                    "length_unit",
+                    "area_unit",
+                    "volume_unit",
+                    "angle_unit",
+                    "precision",
+                )
+            },
+        ),
+        (
+            "IFC Configuration",
+            {
+                "fields": ("ifc_schema_version",),
+            },
+        ),
+        (
+            "Environmental",
+            {
+                "fields": (
+                    "climate_zone",
+                    "design_temperature",
+                )
+            },
+        ),
+        (
+            "Materials & Regulatory",
+            {
+                "fields": (
+                    "material_system",
+                    "regulatory_requirements",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def project_link(self, obj):
+        """Link to parent project"""
+        url = reverse(
+            "admin:parametric_generator_project_change", args=[obj.project.id]
+        )
+        return format_html('<a href="{}">{}</a>', url, obj.project.name)
+
+    project_link.short_description = "Project"
 
 
 @admin.register(GeneratedIFC)

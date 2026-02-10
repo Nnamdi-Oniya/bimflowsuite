@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from apps.users.models import RequestSubmission
+from apps.users.models import RequestSubmission, PasswordResetToken
 from .models import Organization, OrganizationMember
 
 User = get_user_model()
@@ -189,3 +189,38 @@ class OrganizationDetailSerializer(OrganizationSerializer):
 
     class Meta(OrganizationSerializer.Meta):
         fields = OrganizationSerializer.Meta.fields + ["members"]
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Serializer for forgot password request - accepts email address."""
+
+    email = serializers.EmailField(required=True, help_text="Email address")
+
+    def validate_email(self, value):
+        """Silently accept any email (don't reveal if user exists or not)."""
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Serializer for password reset confirmation."""
+
+    token = serializers.CharField(required=True, help_text="Password reset token")
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        min_length=8,
+        style={"input_type": "password"},
+        help_text="New password (min 8 chars)",
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={"input_type": "password"},
+        help_text="Confirm password",
+    )
+
+    def validate(self, attrs):
+        """Validate that passwords match."""
+        if attrs["password"] != attrs["password_confirm"]:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+        return attrs
