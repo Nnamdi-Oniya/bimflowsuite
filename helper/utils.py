@@ -170,6 +170,7 @@ def create_onboarding_user(submission):
             last_name=submission.lastname,
         )
         user.set_unusable_password()
+        user.is_active = False  # User must activate via password reset email
         user.save()
 
         # Create Organization for the user (one org per company)
