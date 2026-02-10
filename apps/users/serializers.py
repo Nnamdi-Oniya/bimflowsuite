@@ -8,10 +8,12 @@ User = get_user_model()
 
 
 class LoginSerializer(serializers.Serializer):
-    """Login – Swagger shows editable username/password fields."""
+    """Login – accepts either username or email with password."""
 
-    username = serializers.CharField(
-        max_length=150, required=True, help_text="Username (e.g., admin)"
+    username_or_email = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Username or email address",
     )
     password = serializers.CharField(
         max_length=128,
@@ -22,11 +24,13 @@ class LoginSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        username = attrs.get("username")
+        username_or_email = attrs.get("username_or_email")
         password = attrs.get("password")
-        if username and password:
+        if username_or_email and password:
             return attrs
-        raise serializers.ValidationError("Both username and password are required.")
+        raise serializers.ValidationError(
+            "Both username/email and password are required."
+        )
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -224,3 +228,26 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
         return attrs
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for user profile with all personal details."""
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "location",
+            "company",
+            "job_title",
+            "profile_picture",
+            "date_joined",
+            "last_login",
+            "is_active",
+        ]
+        read_only_fields = ["id", "username", "date_joined", "last_login", "is_active"]

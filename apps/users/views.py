@@ -13,6 +13,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 import threading
 import logging
+import re
 
 User = get_user_model()
 from .serializers import (
@@ -94,9 +95,23 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
-            username = serializer.validated_data["username"]
+            username_or_email = serializer.validated_data["username_or_email"]
             password = serializer.validated_data["password"]
-            user = authenticate(username=username, password=password)
+
+            # Check if input is email using regex
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+            is_email = re.match(email_pattern, username_or_email)
+
+            if is_email:
+                try:
+                    user_obj = User.objects.get(email=username_or_email)
+                    user = authenticate(username=user_obj.username, password=password)
+                except User.DoesNotExist:
+                    user = None
+            else:
+                # Authenticate directly with username
+                user = authenticate(username=username_or_email, password=password)
+
             if user:
                 refresh = RefreshToken.for_user(user)
                 tokens = {"access": str(refresh.access_token), "refresh": str(refresh)}
@@ -769,3 +784,80 @@ class ResetPasswordView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class UserProfileView(APIView):
+    """Endpoint to get and update current user profile."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Get current user profile with all details",
+        responses={
+            200: openapi.Response(
+                description="User profile retrieved successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                        "username": openapi.Schema(type=openapi.TYPE_STRING),
+                        "email": openapi.Schema(type=openapi.TYPE_STRING),
+                        "first_name": openapi.Schema(type=openapi.TYPE_STRING),
+                        "last_name": openapi.Schema(type=openapi.TYPE_STRING),
+                        "phone_number": openapi.Schema(type=openapi.TYPE_STRING),
+                        "location": openapi.Schema(type=openapi.TYPE_STRING),
+                        "company": openapi.Schema(type=openapi.TYPE_STRING),
+                        "job_title": openapi.Schema(type=openapi.TYPE_STRING),
+                        "profile_picture": openapi.Schema(
+                            type=openapi.TYPE_STRING, format="uri"
+                        ),
+                        "date_joined": openapi.Schema(type=openapi.TYPE_STRING),
+                        "last_login": openapi.Schema(type=openapi.TYPE_STRING),
+                        "is_active": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized"),
+        },
+    )
+    def get(self, request):
+        """Get current authenticated user's profile."""
+        from .serializers import UserProfileSerializer
+
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_description="Update current user profile",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "first_name": openapi.Schema(type=openapi.TYPE_STRING),
+                "last_name": openapi.Schema(type=openapi.TYPE_STRING),
+                "phone_number": openapi.Schema(type=openapi.TYPE_STRING),
+                "location": openapi.Schema(type=openapi.TYPE_STRING),
+                "company": openapi.Schema(type=openapi.TYPE_STRING),
+                "job_title": openapi.Schema(type=openapi.TYPE_STRING),
+                "profile_picture": openapi.Schema(
+                    type=openapi.TYPE_STRING, format="binary"
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(description="Profile updated successfully"),
+            400: openapi.Response(description="Bad request"),
+            401: openapi.Response(description="Unauthorized"),
+        },
+    )
+    def put(self, request):
+        """Update current authenticated user's profile."""
+        from .serializers import UserProfileSerializer
+
+        serializer = UserProfileSerializer(
+            request.user, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            logger.info(f"User profile updated: {request.user.email}")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
