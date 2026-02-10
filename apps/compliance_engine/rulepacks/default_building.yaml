@@ -1,0 +1,19 @@
+rules:
+  - name: min_wall_height
+    type: geometric
+    condition: height > 2.5
+    elements: [IFCWALL]
+  - name: material_compliance
+    type: metadata
+    condition: Material == "concrete"
+    elements: [IFCSLAB]
+  - name: fire_rating
+    type: metadata
+    condition: FireRating >= 60
+    elements: [IFCDOOR]
+  - name: clash_detection
+    type: advanced
+    clash_sets:  # Triggers AdvancedClashDetector
+      - group_a: IfcWall
+        group_b: IfcDuctSegment
+    tolerance_soft: 0.05

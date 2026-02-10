@@ -1,0 +1,433 @@
+/* ================================================================
+   Modern Sweet Django Admin Login – Split Layout + Orange Theme
+   Light / Dark / Auto mode compatible
+   ================================================================ */
+
+:root {
+    /* Color variables */
+    --primary: #f8780f;
+    --orange-dark: #e66f0d;
+    --orange-light: #ff8c2a;
+    --white: #ffffff;
+    --gray-border: #e0e0e0;
+    --gray-text: #666666;
+    --secondary: #444444;
+    --body-bg: #f8f9fa;
+    --body-fg: #333333;
+    --body-loud-color: #222222;
+    --font-family-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --border-radius: 12px;
+    --border-radius-sm: 8px;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --message-error-bg: #fdeded;
+    --error-fg: #c03434;
+    
+    /* Link colors - default (light mode) */
+    --link-color: #f8780f;
+    --link-hover: #e66f0d;
+    --label-color: #444444;
+}
+
+/* Dark mode variables */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --body-bg: #1a1a1a;
+        --body-fg: #e0e0e0;
+        --white: #2d2d2d;
+        --gray-border: #404040;
+        --gray-text: #ff8c2a;
+        --secondary: #cccccc;
+        --body-loud-color: #ffffff;
+        --message-error-bg: #3a1f1f;
+        --error-fg: #ff6b6b;
+        
+        /* Orange text for dark mode */
+        --link-color: #f8780f !important;
+        --link-hover: #ff8c2a !important;
+        --label-color: #f8780f !important; /* Make labels orange in dark mode */
+    }
+}
+
+/* Force orange color for labels in dark mode */
+@media (prefers-color-scheme: dark) {
+    .form-row label {
+        color: var(--link-color) !important;
+    }
+    
+    .forgot-password-row a,
+    .password-reset-link a {
+        color: var(--link-color) !important;
+    }
+    
+    .forgot-password-row a:hover,
+    .password-reset-link a:hover {
+        color: var(--link-hover) !important;
+    }
+}
+
+/* Base styles */
+.login {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+    background: var(--body-bg) !important;
+    font-family: var(--font-family-primary) !important;
+    overflow-x: hidden !important;
+    color: var(--body-fg) !important;
+}
+
+/* ── Split layout container ── */
+.login-split-wrapper {
+    display: flex !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+}
+
+.login-left,
+.login-right {
+    flex: 1 1 50% !important;
+}
+
+.login-left-content {
+    position: relative !important;
+    z-index: 2 !important;
+    color: white !important;
+    padding: 5rem 4.5rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    height: 100% !important;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.55) !important;
+}
+
+.login-left h1 {
+    font-size: 3.4rem !important;
+    font-weight: 800 !important;
+    margin: 0 0 1.2rem 0 !important;
+    line-height: 1.1 !important;
+}
+
+.login-left p {
+    font-size: 1.35rem !important;
+    opacity: 0.94 !important;
+    max-width: 420px !important;
+    line-height: 1.55 !important;
+}
+
+/* ── RIGHT: centered card ── */
+.login-right {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2.5rem 1.5rem !important;
+    background: var(--body-bg) !important;
+}
+
+.login-card {
+    width: 100% !important;
+    max-width: 440px !important;
+    background: var(--white) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 3rem 2.6rem !important;
+    box-shadow: var(--shadow-lg) !important;
+    border: 1px solid var(--gray-border) !important;
+    animation: fadeInUp 0.8s ease-out !important;
+    color: var(--body-fg) !important;
+}
+
+.login-header {
+    text-align: center !important;
+    margin-bottom: 2.4rem !important;
+}
+
+.login-header h2 {
+    font-size: 2.3rem !important;
+    font-weight: 700 !important;
+    color: var(--body-loud-color) !important;
+    margin: 0 0 0.7rem 0 !important;
+}
+
+.already-authenticated {
+    color: var(--gray-text) !important;
+    font-size: 0.98rem !important;
+    line-height: 1.5 !important;
+    margin: 0.5rem 0 0 0 !important;
+    padding: 0.8rem !important;
+    background: var(--body-bg) !important;
+    border-radius: var(--border-radius-sm) !important;
+    border-left: 4px solid var(--primary) !important;
+}
+
+/* Form fields */
+.form-row {
+    margin-bottom: 1.9rem !important;
+}
+
+.form-row label {
+    display: block !important;
+    margin-bottom: 0.6rem !important;
+    font-weight: 600 !important;
+    color: var(--label-color) !important; /* Use variable for label color */
+    font-size: 0.94rem !important;
+    letter-spacing: 0.3px !important;
+}
+
+/* Specifically target the username and password labels */
+#id_username + label,
+#id_password + label,
+.form-row label[for="id_username"],
+.form-row label[for="id_password"] {
+    color: var(--label-color) !important;
+}
+
+.form-row input[type="text"],
+.form-row input[type="password"],
+#id_username,
+#id_password {
+    width: 100% !important;
+    padding: 0.95rem 1.1rem !important;
+    border: 2px solid var(--gray-border) !important;
+    border-radius: var(--border-radius-sm) !important;
+    font-size: 1.05rem !important;
+    transition: all 0.22s ease !important;
+    background: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    box-sizing: border-box !important;
+    font-family: var(--font-family-primary) !important;
+}
+
+.form-row input:focus,
+#id_username:focus,
+#id_password:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 4px rgba(248, 120, 15, 0.16) !important;
+    outline: none !important;
+}
+
+/* Error states */
+.form-row .errorlist {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0.4rem 0 0.8rem 0 !important;
+    color: var(--error-fg) !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+}
+
+/* Submit button */
+.submit-row {
+    margin-top: 2.2rem !important;
+}
+
+.submit-row input[type="submit"] {
+    width: 100% !important;
+    padding: 1.1rem !important;
+    background: linear-gradient(to right, var(--primary), var(--orange-dark)) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--border-radius-sm) !important;
+    font-size: 1.08rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.9px !important;
+    cursor: pointer !important;
+    transition: all 0.32s ease !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.submit-row input[type="submit"]:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: var(--shadow-lg) !important;
+    background: linear-gradient(to right, var(--orange-dark), #d65e0b) !important;
+}
+
+.submit-row input[type="submit"]:active {
+    transform: translateY(-1px) !important;
+}
+
+/* Links & helpers - FIXED FORGOT PASSWORD */
+.password-reset-link {
+    text-align: center !important;
+    margin: 1.6rem 0 2.2rem !important;
+    padding-top: 0.5rem !important;
+    border-top: 1px solid var(--gray-border) !important;
+}
+
+.password-reset-link a {
+    color: var(--link-color) !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    transition: color 0.2s ease !important;
+    font-size: 0.95rem !important;
+    display: inline-block !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 4px !important;
+}
+
+.password-reset-link a:hover {
+    color: var(--link-hover) !important;
+    text-decoration: underline !important;
+    background: rgba(248, 120, 15, 0.08) !important;
+}
+
+/* Forgot password row styling */
+.forgot-password-row {
+    text-align: center !important;
+    margin: 1.2rem 0 1.8rem !important;
+    padding: 0.8rem !important;
+    background: var(--body-bg) !important;
+    border-radius: var(--border-radius-sm) !important;
+    border: 1px solid var(--gray-border) !important;
+}
+
+.forgot-password-row a {
+    color: var(--link-color) !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    font-size: 0.95rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    transition: all 0.2s ease !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 6px !important;
+}
+
+.forgot-password-row a:hover {
+    color: var(--link-hover) !important;
+    text-decoration: underline !important;
+    background: rgba(248, 120, 15, 0.1) !important;
+}
+
+.forgot-password-row a::before {
+    content: "🔑" !important;
+    font-size: 0.9em !important;
+}
+
+.errornote {
+    background: var(--message-error-bg) !important;
+    color: var(--error-fg) !important;
+    border-left: 5px solid var(--error-fg) !important;
+    padding: 1rem 1.4rem !important;
+    border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0 !important;
+    margin-bottom: 1.8rem !important;
+    font-weight: 500 !important;
+    font-size: 0.95rem !important;
+    line-height: 1.4 !important;
+}
+
+.login-footer {
+    text-align: center !important;
+    margin-top: 2.8rem !important;
+    color: var(--gray-text) !important;
+    font-size: 0.84rem !important;
+    padding-top: 1.5rem !important;
+    border-top: 1px solid var(--gray-border) !important;
+}
+
+/* Animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+    .login-split-wrapper {
+        flex-direction: column !important;
+    }
+
+    .login-left {
+        min-height: 45vh !important;
+        flex: none !important;
+    }
+
+    .login-left-content {
+        padding: 4rem 2.5rem !important;
+        text-align: center !important;
+        align-items: center !important;
+    }
+
+    .login-left h1 {
+        font-size: 2.8rem !important;
+    }
+
+    .login-left p {
+        font-size: 1.2rem !important;
+        max-width: 500px !important;
+    }
+
+    .login-right {
+        flex: none !important;
+        min-height: 55vh !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .login-card {
+        padding: 2.2rem 1.8rem !important;
+    }
+
+    .login-header h2 {
+        font-size: 2rem !important;
+    }
+
+    .login-left-content {
+        padding: 3rem 1.5rem !important;
+    }
+
+    .login-left h1 {
+        font-size: 2.4rem !important;
+    }
+
+    .login-left p {
+        font-size: 1.1rem !important;
+    }
+    
+    .forgot-password-row a {
+        padding: 0.4rem 0.8rem !important;
+        font-size: 0.9rem !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    .login-left {
+        display: none !important;
+    }
+
+    .login-card {
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+    }
+}
+
+/* Dark mode override for form labels */
+@media (prefers-color-scheme: dark) {
+    .form-row label {
+        color: #f8780f !important;
+    }
+    
+    .forgot-password-row a {
+        color: #f8780f !important;
+    }
+    
+    .forgot-password-row a:hover {
+        color: #ff8c2a !important;
+    }
+    
+    .password-reset-link a {
+        color: #f8780f !important;
+    }
+    
+    .password-reset-link a:hover {
+        color: #ff8c2a !important;
+    }
+}

@@ -1,1 +1,0 @@
-default_app_config = 'compliance_engine.apps.ComplianceEngineConfig'
