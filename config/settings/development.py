@@ -1,10 +1,9 @@
 from .common import *  # noqa: F403
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split(",") 
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split(",")
 
 REST_FRAMEWORK = {
     "NON_FIELD_ERRORS_KEY": "error",
-    "EXCEPTION_HANDLER": "bimflow.utils.handle_exceptions.custom_exception_handler",
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
