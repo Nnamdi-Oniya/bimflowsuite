@@ -1,83 +1,78 @@
-from ifcopenshell import file as ifc_file, util
-import uuid
+"""
+Building Generator
+
+Specializes the base IFC generator for building projects with
+structural analysis properties, building systems, and MEP networks.
+Supports IFC2X3, IFC4, and IFC4X3 schema versions.
+"""
+
+from .base import BaseIFCGenerator
+from ifcopenshell import guid
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def generate_building_ifc(project, specifications):
-    """
-    Generate building IFC from project metadata and specifications.
-    Args:
-        project: Project model instance with metadata
-        specifications: Dict with generation specs (floors, height, materials, etc.)
-    """
-    ifc = ifc_file(schema="IFC4X3")
+class BuildingIFCGenerator(BaseIFCGenerator):
+    """Generate IFC for building projects."""
 
-    # Project/Site boilerplate
-    project_ifc = ifc.createIfcProject(
-        ifc.guid.compress(uuid.uuid4()), project.name or "Building Project"
-    )
-    site = ifc.createIfcSite(
-        ifc.guid.compress(uuid.uuid4()), project.location or "Site"
-    )
-    ifc.createIfcRelAggregates(
-        ifc.guid.compress(uuid.uuid4()), None, None, None, [site], project_ifc
-    )
+    def generate(self):
+        """Generate building IFC with specialized properties."""
+        ifc_string = super().generate()
+        self.customize()
+        return ifc_string
 
-    # Building with basic swept solid for walls
-    building = ifc.createIfcBuilding(
-        ifc.guid.compress(uuid.uuid4()), project.name or "Office Building"
-    )
-    ifc.createIfcRelAggregates(
-        ifc.guid.compress(uuid.uuid4()), None, None, None, [building], site
-    )
+    def customize(self):
+        """Add building-specific properties."""
+        try:
+            # Add structural analysis properties to beams/columns
+            for asset_id, ifc_elem in self.element_map.items():
+                if not asset_id.startswith("asset_"):
+                    continue
 
-    floors = specifications.get("floors", project.stories or 1)
-    height_per_floor = specifications.get("height", project.height or 15) / floors
-    for i in range(floors):
-        storey = ifc.createIfcBuildingStorey(
-            ifc.guid.compress(uuid.uuid4()),
-            f"Floor {i + 1}",
-            None,
-            i * height_per_floor,
-        )
-        ifc.createIfcRelAggregates(
-            ifc.guid.compress(uuid.uuid4()), None, None, None, [storey], building
-        )
+                # Add structural properties
+                self._add_structural_properties(ifc_elem)
 
-        # Wall with extrusion (simple rect)
-        wall = ifc.createIfcWall(ifc.guid.compress(uuid.uuid4()), "Exterior Wall")
-        # Add representation: SweptAreaSolid
-        profile = ifc.createIfcRectangleProfileDef(
-            None, None, 0.2, 3.0
-        )  # Thickness x height
-        extrusion = ifc.createIfcExtrudedAreaSolid(
-            profile, ifc.createIfcAxis2Placement2D(), 10.0
-        )  # Length
-        rep = ifc.createIfcShapeRepresentation(
-            ifc.createIfcGeometricRepresentationContext(),
-            "Body",
-            "SweptSolid",
-            [extrusion],
-        )
-        wall.Representation = rep
-        ifc.createIfcRelAggregates(
-            ifc.guid.compress(uuid.uuid4()), None, None, None, [wall], storey
-        )
+            logger.info("Building customization complete")
 
-        # Pset
-        pset = ifc.createIfcPropertySet(
-            ifc.guid.compress(uuid.uuid4()), "Pset_WallCommon", None
-        )
-        mat_prop = ifc.createIfcPropertySingleValue(
-            "Material",
-            None,
-            ifc.createIfcLabel(
-                specifications.get("materials", {}).get(
-                    "wall", project.structural_frame or "concrete"
+        except Exception as e:
+            logger.warning(f"Building customization error: {str(e)}")
+
+    def _add_structural_properties(self, ifc_element):
+        """Add AISC/EC structural analysis properties."""
+        try:
+            # Check element type
+            elem_type = ifc_element.is_a()
+
+            if "Beam" in elem_type or "Column" in elem_type:
+                # Create structural pset
+                pset = self.ifc.createIfcPropertySet(
+                    guid.new(),
+                    Name="Pset_StructuralAnalysisProperties",
+                    HasProperties=[],
                 )
-            ),
-            None,
-        )
-        ifc.createIfcRelDefinesByProperties(None, None, None, [wall], pset)
-        pset.HasProperties = [mat_prop]
 
-    return ifc.to_string()  # Enhanced with geometry for clashes
+                # Add standard structural properties
+                props = [
+                    ("Material", "Steel"),
+                    ("YieldStrength", "250"),  # MPa
+                    ("ElasticModulus", "210000"),  # MPa
+                    ("Density", "7850"),  # kg/m3
+                ]
+
+                for prop_name, prop_value in props:
+                    prop = self.ifc.createIfcPropertySingleValue(
+                        Name=prop_name,
+                        NominalValue=self.ifc.createIfcLabel(str(prop_value)),
+                    )
+                    pset.HasProperties = list(pset.HasProperties or []) + [prop]
+
+                if pset.HasProperties:
+                    self.ifc.createIfcRelDefinesByProperties(
+                        guid.new(),
+                        RelatedObjects=[ifc_element],
+                        RelatingPropertyDefinition=pset,
+                    )
+
+        except Exception as e:
+            logger.debug(f"Structural property error: {str(e)}")

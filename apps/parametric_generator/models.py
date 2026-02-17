@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.conf import settings
 from apps.users.models import Organization
@@ -18,18 +19,25 @@ class Project(models.Model):
     - Type Metadata: type_metadata for flexible type-specific details
     """
 
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique project identifier (UUID)",
+    )
+
     # ==================== PROJECT TYPE CHOICES ====================
     PROJECT_TYPE_CHOICES = [
-        ("IFC_BUILDING", "Building"),
-        ("IFC_ROAD", "Road"),
-        ("IFC_RAILWAY", "Railway"),
-        ("IFC_BRIDGE", "Bridge"),
-        ("IFC_TUNNEL", "Tunnel"),
-        ("IFC_MARINE_FACILITY", "Marine Facility"),
-        ("IFC_FACTORY", "Factory"),
-        ("IFC_PROCESS_PLANT", "Process Plant"),
-        ("IFC_DISTRIBUTION_SYSTEM", "Distribution System"),
-        ("IFC_SITE", "Site / Land Project"),
+        ("BUILDING", "Building"),
+        ("INFRA_ROAD", "Road"),
+        ("INFRA_RAILWAY", "Railway"),
+        ("INFRA_BRIDGE", "Bridge"),
+        ("INFRA_TUNNEL", "Tunnel"),
+        ("INFRA_MARINE", "Marine Facility"),
+        ("INDUSTRIAL_FACTORY", "Factory"),
+        ("INDUSTRIAL_PLANT", "Process Plant"),
+        ("INFRA_DISTRIBUTION", "Distribution System"),
+        ("SITE", "Site / Land Project"),
         ("OTHER", "Other / Custom"),
     ]
 
@@ -198,6 +206,13 @@ class Site(models.Model):
     A project can have multiple sites (e.g., multi-phase development).
     Contains location, geometry, units, materials, and site-specific configuration.
     """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique site identifier (UUID)",
+    )
 
     # Unit Choices
     LENGTH_UNIT_CHOICES = [
@@ -415,7 +430,7 @@ class Site(models.Model):
 
 
 class GeneratedIFC(models.Model):
-    """IFC files generated from project specifications"""
+    """IFC files generated from project specifications with detailed status tracking"""
 
     ASSET_TYPE_CHOICES = [
         # Buildings
@@ -465,7 +480,12 @@ class GeneratedIFC(models.Model):
     ]
 
     # ==================== IDENTIFICATION ====================
-    id = models.AutoField(primary_key=True, help_text="Unique IFC record ID")
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique IFC record identifier (UUID)",
+    )
     name = models.CharField(
         max_length=255,
         blank=True,
@@ -499,10 +519,44 @@ class GeneratedIFC(models.Model):
         help_text="Generated IFC file (supports S3 or local storage)",
     )
     file_size = models.BigIntegerField(default=0, help_text="File size in bytes")
+    file_format = models.CharField(
+        max_length=20,
+        default="ifc",
+        help_text="File format/extension (ifc, ifcxml, etc.)",
+    )
+
+    # ==================== GENERATION DETAILS ====================
+    generation_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Details about generated IFC: element counts, schema info, etc.",
+    )
+    # Example structure:
+    # {
+    #   "total_elements": 1250,
+    #   "building_elements": 800,
+    #   "spatial_elements": 120,
+    #   "property_sets_count": 450,
+    #   "schema_version": "IFC4X3",
+    #   "generator_version": "1.0.0",
+    #   "generation_time_seconds": 2.5
+    # }
+
+    generation_warnings = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Warnings during IFC generation",
+    )
+    # Example: ["Element 5 has missing property set", "Coordinate precision reduced"]
 
     # Error Tracking
     error_message = models.TextField(
         blank=True, null=True, help_text="Error message if generation failed"
+    )
+    error_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Detailed error information including traceback",
     )
 
     # Metadata
@@ -522,3 +576,240 @@ class GeneratedIFC(models.Model):
     def __str__(self):
         name = self.name or f"{self.project.name} - {self.get_asset_type_display()}"
         return name
+
+
+class SpatialStructure(models.Model):
+    """
+    Spatial Structure - Hierarchical spatial organization in IFC structure
+
+    Represents the organizational hierarchy:
+    - Building: Site → Building → BuildingStorey → Space
+    - Bridge: Site → Bridge → Deck → Segment
+    - Road: Site → Road → Segment → Lane
+
+    Fields vary by spatial_type to support different project types flexibly.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique spatial structure identifier (UUID)",
+    )
+
+    SPATIAL_TYPE_CHOICES = [
+        # Building hierarchy (IFC4X3)
+        ("ifc_building", "IfcBuilding"),
+        ("ifc_building_storey", "IfcBuildingStorey"),
+        ("ifc_space", "IfcSpace"),
+        ("ifc_zone", "IfcZone"),
+        # Bridge hierarchy (IFC4X3)
+        ("ifc_bridge", "IfcBridge"),
+        ("ifc_bridge_part", "IfcBridgePart"),
+        ("ifc_structural_member", "IfcStructuralMember"),
+        # Road hierarchy (IFC4X3)
+        ("ifc_road", "IfcRoad"),
+        ("ifc_road_part", "IfcRoadPart"),
+        ("ifc_alignment", "IfcAlignment"),
+        # Site container (IFC4X3)
+        ("ifc_site", "IfcSite"),
+    ]
+
+    # ==================== HIERARCHY ====================
+    site = models.ForeignKey(
+        Site,
+        on_delete=models.CASCADE,
+        related_name="spatial_structures",
+        help_text="Site this spatial structure belongs to",
+    )
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="children",
+        help_text="Parent spatial structure in hierarchy",
+    )
+
+    # ==================== IDENTIFICATION ====================
+    spatial_type = models.CharField(
+        max_length=50,
+        choices=SPATIAL_TYPE_CHOICES,
+        help_text="Type of spatial element (Building, Storey, Bridge, Deck, Road, Segment, etc.)",
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Name/identifier for this spatial structure (e.g., 'Ground Floor', 'Main Span')",
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Description of this spatial structure",
+    )
+
+    # ==================== HIERARCHICAL METADATA ====================
+    level = models.PositiveIntegerField(
+        default=0,
+        help_text="Depth level in hierarchy (0=root, 1=first children, etc.)",
+    )
+    order_in_parent = models.PositiveIntegerField(
+        default=0,
+        help_text="Order/sequence within parent structure",
+    )
+
+    # ==================== PROPERTIES (Type-specific) ====================
+    properties = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Type-specific properties (dimensions, materials, specifications)",
+    )
+    # Examples:
+    # Building: {"height": 30.5, "footprint_area": 2500}
+    # BuildingStorey: {"elevation": 5.0, "floor_to_floor_height": 3.5}
+    # Road: {"length": 2500, "width": 12.0, "surface_type": "asphalt"}
+    # RoadSegment: {"start_km": 0, "end_km": 1, "grade": 2.5}
+
+    # ==================== METADATA ====================
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["level", "order_in_parent", "created_at"]
+        indexes = [
+            models.Index(fields=["site", "spatial_type"]),
+            models.Index(fields=["parent", "level"]),
+        ]
+        unique_together = [("site", "name")]
+
+    def __str__(self):
+        parent_name = f" in {self.parent.name}" if self.parent else ""
+        return f"{self.name} ({self.get_spatial_type_display()}){parent_name}"
+
+    def get_children_by_type(self, spatial_type):
+        """Get all direct children of a specific type"""
+        return self.children.filter(spatial_type=spatial_type)
+
+    def get_all_descendants(self):
+        """Recursively get all descendant spatial structures"""
+        descendants = []
+        for child in self.children.all():
+            descendants.append(child)
+            descendants.extend(child.get_all_descendants())
+        return descendants
+
+
+class Asset(models.Model):
+    """
+    Asset - Physical elements/components in the BIM model
+
+    Represents tangible components:
+    - Building: Wall, Beam, Slab, Column, Door, Window, Pipe, etc.
+    - Bridge: BeamSpan, Pier, Bearing, Railing, etc.
+    - Road: Pavement, Curb, Marking, etc.
+
+    Each asset belongs to a spatial element and inherits site context.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique asset identifier (UUID)",
+    )
+
+    ASSET_TYPE_CHOICES = [
+        # Building components
+        ("wall", "Wall"),
+        ("beam", "Beam"),
+        ("slab", "Slab"),
+        ("column", "Column"),
+        ("foundation", "Foundation"),
+        ("door", "Door"),
+        ("window", "Window"),
+        ("roof", "Roof"),
+        ("stairs", "Stairs"),
+        ("ramp", "Ramp"),
+        ("shear_wall", "Shear Wall"),
+        # MEP/Services
+        ("pipe", "Pipe"),
+        ("duct", "Duct"),
+        ("cable", "Cable"),
+        ("fitting", "Fitting"),
+        ("equipment", "Equipment"),
+        ("sensor", "Sensor"),
+        # Bridge components
+        ("beam_span", "Beam Span"),
+        ("girder", "Girder"),
+        ("pier", "Pier"),
+        ("abutment", "Abutment"),
+        ("bearing", "Bearing"),
+        ("expansion_joint", "Expansion Joint"),
+        ("bridge_railing", "Bridge Railing"),
+        ("bridge_deck", "Bridge Deck Element"),
+        # Road components
+        ("pavement", "Pavement"),
+        ("curb", "Curb"),
+        ("marking", "Road Marking"),
+        ("sign", "Road Sign"),
+        ("light", "Street Light"),
+        ("manhole", "Manhole"),
+        ("storm_drain", "Storm Drain"),
+        # Generic
+        ("other", "Other"),
+    ]
+
+    # ==================== RELATIONSHIPS ====================
+    spatial_structure = models.ForeignKey(
+        SpatialStructure,
+        on_delete=models.CASCADE,
+        related_name="assets",
+        help_text="Spatial structure this asset belongs to",
+    )
+    site = models.ForeignKey(
+        Site,
+        on_delete=models.CASCADE,
+        related_name="assets",
+        help_text="Site for quick filtering and context",
+    )
+
+    # ==================== IDENTIFICATION ====================
+    asset_type = models.CharField(
+        max_length=50,
+        choices=ASSET_TYPE_CHOICES,
+        help_text="Type of asset (Wall, Beam, Pipe, etc.)",
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Name/identifier for this asset (e.g., 'Wall-001', 'Column-A1')",
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Description of this asset",
+    )
+
+    # ==================== PROPERTIES (Type-specific) ====================
+    properties = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Type-specific properties (material, dimensions, specifications)",
+    )
+    # Examples:
+    # Wall: {"material": "concrete", "thickness": 0.3, "finish": "painted"}
+    # Beam: {"shape": "I-beam", "length": 10, "material": "steel", "section_id": "IPE300"}
+    # Pipe: {"diameter": 0.1, "material": "copper", "fluid": "water"}
+    # Slab: {"thickness": 0.25, "material": "reinforced_concrete", "coverage": 0.04}
+
+    # ==================== METADATA ====================
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["spatial_structure", "asset_type", "created_at"]
+        indexes = [
+            models.Index(fields=["site", "asset_type"]),
+            models.Index(fields=["spatial_structure", "asset_type"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_asset_type_display()}) in {self.spatial_structure.name}"

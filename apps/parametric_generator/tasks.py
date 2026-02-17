@@ -1,93 +1,161 @@
 from celery import shared_task
-from ifcopenshell import file as ifc_file
-import base64
-from io import BytesIO
-from django.core.files.base import ContentFile
-from .models import GeneratedIFC
-from .generators import (
-    building,
-    bridge,
-    road,
-    highrise,
-    tunnel,
-    generic,
-)
-from bimflow.consumers import broadcast_progress
 import logging
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+import traceback
+from datetime import datetime
+from django.utils import timezone
+from django.core.files.base import ContentFile
+from .models import GeneratedIFC, Site
+from .generators.building import BuildingIFCGenerator
+from .generators.bridge import BridgeIFCGenerator
+from .generators.road import RoadIFCGenerator
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def generate_ifc_task(self, model_id, asset_type_code, spec_json, scenario_id=None):
+def generate_ifc_for_site(self, site_id):
+    """
+    Generate IFC4X3 file for a site with its spatial structure and assets.
+
+    Uses Factory Pattern to select appropriate generator based on project_type:
+    - BUILDING → BuildingIFCGenerator (structural analysis properties)
+    - INFRA_BRIDGE → BridgeIFCGenerator (bridge-specific properties)
+    - INFRA_ROAD → RoadIFCGenerator (pavement and road properties)
+
+    Args:
+        site_id: UUID of the Site to generate IFC for
+
+    Returns:
+        dict: {"status": "success", "site_id": site_id, "generated_ifc_id": generated_ifc_id}
+
+    Raises:
+        Propagates exception for retry handling
+    """
     try:
-        model = GeneratedIFC.objects.get(id=model_id)
-        model.status = "generating"
-        model.save()
+        site = Site.objects.get(id=site_id)
+        project = site.project
 
-        # Broadcast progress
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"task_{self.request.id}",
-            {"type": "task_update", "status": "generating", "progress": 30},
+        # Create GeneratedIFC record
+        generated_ifc = GeneratedIFC.objects.create(
+            project=project,
+            name=f"{site.site_name} - IFC Generation",
+            asset_type="other",
+            ifc_schema_version=site.ifc_schema_version,
+            status="generating",
+            specifications={
+                "site_id": str(site_id),
+                "project_type": project.project_type,
+                "spatial_element_count": site.spatial_structures.count(),
+            },
         )
 
-        # Get generator function for asset type
-        generators = {
-            "building": building.generate_building_ifc,
-            "bridge": bridge.generate_bridge_ifc,
-            "road": road.generate_road_ifc,
-            "highrise": highrise.generate_highrise_ifc,
-            "tunnel": tunnel.generate_tunnel_ifc,  # New example
-            # Add more: 'railway': railway.generate_railway_ifc,
+        logger.info(f"Starting IFC generation for site: {site_id}")
+        start_time = datetime.now()
+
+        # Select generator based on project type
+        generator_class = _get_generator_class(project.project_type)
+
+        if not generator_class:
+            raise ValueError(
+                f"No generator implemented for project type: {project.project_type}"
+            )
+
+        # Instantiate and generate IFC
+        generator = generator_class(site)
+        ifc_string = generator.generate()
+
+        # Save generated IFC file
+        filename = f"{site_id}_{site.ifc_schema_version}.ifc"
+        generated_ifc.ifc_file.save(filename, ContentFile(ifc_string.encode()))
+
+        # Calculate generation time
+        generation_time = (datetime.now() - start_time).total_seconds()
+
+        # Update GeneratedIFC with metadata
+        generated_ifc.status = "completed"
+        generated_ifc.file_size = len(ifc_string.encode())
+        generated_ifc.file_format = "ifc"
+        generated_ifc.completed_at = timezone.now()
+
+        # Capture generation metadata
+        generated_ifc.generation_metadata = {
+            "total_elements": generator.element_map.__len__()
+            if hasattr(generator, "element_map")
+            else 0,
+            "spatial_elements": site.spatial_structures.count(),
+            "assets": site.spatial_structures.filter(assets__isnull=False).count(),
+            "property_sets": generator.property_sets_count
+            if hasattr(generator, "property_sets_count")
+            else 0,
+            "schema_version": generator.metadata.get(
+                "schema_version", site.ifc_schema_version
+            ),
+            "generator_class": generator_class.__name__,
+            "generator_version": "1.0.0",
+            "generation_time_seconds": generation_time,
         }
-        gen_func = generators.get(asset_type_code)
 
-        # Fallback to generic if not implemented
-        if not gen_func:
-            logger.warning(
-                f"Using generic fallback for {asset_type_code}; implement custom generator."
-            )
-            ifc_string = generic.generate_generic_ifc(spec_json, asset_type_code)
-            spec_json["_fallback_used"] = True  # Flag in results
-        else:
-            ifc_string = gen_func(spec_json)
+        # Capture any warnings
+        if hasattr(generator, "warnings"):
+            generated_ifc.generation_warnings = generator.warnings
 
-        # Federated merge if scenario
-        if scenario_id:
-            # Placeholder: Merge with baseline IFC
-            pass
+        generated_ifc.save()
 
-        # Use new method to save
-        base64_data = base64.b64encode(ifc_string.encode()).decode()
-        model.save_ifc_from_base64(base64_data, f"{model.id}.ifc")
-
-        async_to_sync(channel_layer.group_send)(
-            f"task_{self.request.id}",
-            {"type": "task_update", "status": "completed", "progress": 100},
+        logger.info(
+            f"IFC generation successful: {generated_ifc.id} "
+            f"({generation_time:.2f}s, {generated_ifc.file_size} bytes)"
         )
 
-        task_instance = model.tasks.filter(task_id=self.request.id).first()
-        if task_instance:
-            task_instance.mark_completed(
-                {
-                    "status": "success",
-                    "model_id": model_id,
-                    "fallback_used": spec_json.get("_fallback_used", False),
-                }
-            )
+        return {
+            "status": "success",
+            "site_id": str(site_id),
+            "generated_ifc_id": str(generated_ifc.id),
+            "generation_time": generation_time,
+        }
 
-        return {"status": "success", "model_id": model_id}
+    except Site.DoesNotExist:
+        logger.error(f"Site not found: {site_id}")
+        raise ValueError(f"Site with ID {site_id} does not exist")
 
     except Exception as e:
-        logger.error(f"IFC generation failed: {e}")
-        model = GeneratedIFC.objects.get(id=model_id)
-        model.status = "failed"
-        model.error_message = str(e)
-        model.save()
-        task_instance = model.tasks.filter(task_id=self.request.id).first()
-        if task_instance:
-            task_instance.mark_failed(str(e))
-        raise self.retry(exc=e, countdown=60)
+        logger.error(f"IFC generation failed for site {site_id}: {str(e)}")
+
+        # Try to update the GeneratedIFC record with error details
+        try:
+            if "generated_ifc" in locals():
+                generated_ifc.status = "failed"
+                generated_ifc.error_message = str(e)
+                generated_ifc.error_details = {
+                    "exception_type": type(e).__name__,
+                    "exception_message": str(e),
+                    "traceback": traceback.format_exc(),
+                    "timestamp": timezone.now().isoformat(),
+                }
+                generated_ifc.save()
+        except Exception as save_error:
+            logger.error(f"Failed to save error details: {str(save_error)}")
+
+        # Re-raise for Celery retry mechanism
+        raise self.retry(exc=e, countdown=60, max_retries=3)
+
+
+def _get_generator_class(project_type):
+    """
+    Factory method to select appropriate generator class based on project type.
+
+    Args:
+        project_type: str - Project type from Project.PROJECT_TYPE_CHOICES
+
+    Returns:
+        Generator class or None if not implemented
+    """
+    generators = {
+        "BUILDING": BuildingIFCGenerator,
+        "INFRA_BRIDGE": BridgeIFCGenerator,
+        "INFRA_ROAD": RoadIFCGenerator,
+        # Additional types can be added as generators are implemented:
+        # "INFRA_RAILWAY": RailwayIFCGenerator,
+        # "INFRA_TUNNEL": TunnelIFCGenerator,
+        # "INDUSTRIAL_FACTORY": FactoryIFCGenerator,
+    }
+    return generators.get(project_type)

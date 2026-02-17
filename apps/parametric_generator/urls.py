@@ -5,11 +5,20 @@ from .views import (
     ProjectViewSet,
     GeneratedIFCViewSet,
     SiteViewSet,
+    SpatialStructureViewSet,
+    AssetViewSet,
     IsOrganizationMember,
 )
 
 generate_router = DefaultRouter()
 generate_router.register(r"ifcs", GeneratedIFCViewSet, basename="generated-ifc")
+
+# Routers for new hierarchical structure
+structure_router = DefaultRouter()
+structure_router.register(
+    r"spatial-structures", SpatialStructureViewSet, basename="spatial-structure"
+)
+structure_router.register(r"assets", AssetViewSet, basename="asset")
 
 app_name = "bim_projects"
 
@@ -58,6 +67,19 @@ urlpatterns = [
         ),
         name="site-detail",
     ),
+    # Site structure endpoint (spatial elements + assets hierarchy)
+    path(
+        "sites/<int:pk>/structure/",
+        SiteViewSet.as_view(
+            {
+                "get": "structure",
+                "put": "structure",
+            }
+        ),
+        name="site-structure",
+    ),
     # Generate/IFC endpoints
     path("generate/", include(generate_router.urls)),
+    # Structure/Hierarchy endpoints
+    path("structure/", include(structure_router.urls)),
 ]

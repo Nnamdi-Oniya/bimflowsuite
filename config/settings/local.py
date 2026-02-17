@@ -1,5 +1,7 @@
 from .common import *
 
+DEBUG = True
+ALLOWED_HOSTS = ["*"]
 
 LOGGING = {
     'version': 1,
@@ -24,4 +26,6 @@ LOGGING = {
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
