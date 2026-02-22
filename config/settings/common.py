@@ -16,8 +16,6 @@ SECRET_KEY = os.environ.get(
 )
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["*"]
-
 # Backend URL for onboarding emails
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 

@@ -6,13 +6,18 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 import logging
 
-from .models import Project, GeneratedIFC, Site
+from .models import Project, GeneratedIFC, Site, SpatialStructure, Asset
 from .serializers import (
     ProjectSerializer,
     ProjectDetailSerializer,
     GeneratedIFCSerializer,
     SiteSerializer,
+    SpatialStructureSerializer,
+    AssetSerializer,
+    AssetSimpleSerializer,
+    SiteStructureSerializer,
 )
+from .tasks import generate_ifc_for_site
 from apps.users.models import Organization, OrganizationMember
 
 logger = logging.getLogger(__name__)
@@ -519,3 +524,272 @@ class SiteViewSet(viewsets.ModelViewSet):
 
         self.perform_destroy(site)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=["get", "put"],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def structure(self, request, pk=None):
+        """
+        GET: Retrieve complete spatial structure and assets for a site
+        PUT: Update spatial structure and assets for a site
+        """
+        site = self.get_object()
+
+        # Verify user can access this site
+        self.check_object_permissions(request, site)
+
+        if request.method == "GET":
+            serializer = SiteStructureSerializer(site, context={"request": request})
+            return Response(serializer.data)
+
+        elif request.method == "PUT":
+            # Verify user has edit permission
+            member = OrganizationMember.objects.get(
+                organization=site.project.organization, user=request.user
+            )
+            if not member.can_edit_projects:
+                raise PermissionDenied(
+                    "You don't have permission to edit sites in this organization"
+                )
+
+            data = request.data
+            errors = []
+
+            try:
+                # Process spatial structures (hierarchical structure)
+                spatial_structures_data = data.get("spatial_structures", [])
+                site.spatial_structures.all().delete()  # Clear existing
+
+                # Recursively create spatial structures
+                for struct_data in spatial_structures_data:
+                    self._create_spatial_structure(site, struct_data, parent=None)
+
+                # Process assets
+                assets_data = data.get("assets", [])
+                site.assets.all().delete()  # Clear existing
+
+                for asset_data in assets_data:
+                    self._create_asset(site, asset_data)
+
+                # Return updated structure
+                serializer = SiteStructureSerializer(site, context={"request": request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response(
+                    {"error": f"Failed to update structure: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def generate_ifc(self, request, pk=None):
+        """
+        POST: Queue IFC4X3 generation for this site
+
+        Returns:
+            {
+                "status": "queued",
+                "generated_ifc_id": "uuid",
+                "task_id": "celery-task-id"
+            }
+        """
+        site = self.get_object()
+
+        # Verify user can access this site
+        self.check_object_permissions(request, site)
+
+        # Verify user has edit permission
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied(
+                "You don't have permission to generate IFC for sites in this organization"
+            )
+
+        try:
+            # Queue IFC generation task
+            task = generate_ifc_for_site.delay(str(site.id))
+
+            logger.info(
+                f"IFC generation task queued for site {site.id}: task_id={task.id}"
+            )
+
+            return Response(
+                {
+                    "status": "queued",
+                    "site_id": str(site.id),
+                    "task_id": task.id,
+                    "message": "IFC generation task has been queued. Check the generated_ifcs endpoint for results.",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to queue IFC generation for site {site.id}: {str(e)}")
+            return Response(
+                {"error": f"Failed to queue IFC generation: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _create_spatial_structure(self, site, data, parent=None):
+        """Recursively create spatial structure with children"""
+        children_data = data.pop("children", [])
+
+        spatial_struct = SpatialStructure.objects.create(
+            site=site,
+            parent=parent,
+            spatial_type=data.get("spatial_type"),
+            name=data.get("name"),
+            description=data.get("description", ""),
+            order_in_parent=data.get("order_in_parent", 0),
+            properties=data.get("properties", {}),
+            level=(parent.level + 1) if parent else 0,
+        )
+
+        # Recursively create children
+        for child_data in children_data:
+            self._create_spatial_structure(site, child_data, parent=spatial_struct)
+
+        return spatial_struct
+
+    def _create_asset(self, site, data):
+        """Create asset linked to a spatial structure"""
+        spatial_structure_id = data.get("spatial_structure_id")
+        try:
+            spatial_structure = SpatialStructure.objects.get(
+                id=spatial_structure_id, site=site
+            )
+        except SpatialStructure.DoesNotExist:
+            raise ValueError(
+                f"Spatial structure {spatial_structure_id} not found in this site"
+            )
+
+        Asset.objects.create(
+            spatial_structure=spatial_structure,
+            site=site,
+            asset_type=data.get("asset_type"),
+            name=data.get("name"),
+            description=data.get("description", ""),
+            properties=data.get("properties", {}),
+        )
+
+
+class SpatialStructureViewSet(viewsets.ModelViewSet):
+    """CRUD endpoints for spatial structures (hierarchical organization)"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = SpatialStructureSerializer
+    filterset_fields = ["site", "spatial_type", "parent"]
+    search_fields = ["name", "description"]
+    ordering = ["level", "order_in_parent"]
+
+    def get_queryset(self):
+        """Return spatial structures from sites user can access"""
+        if getattr(self, "swagger_fake_view", False):
+            return SpatialStructure.objects.none()
+
+        user_organizations = OrganizationMember.objects.filter(
+            user=self.request.user, is_active=True
+        ).values_list("organization", flat=True)
+
+        return SpatialStructure.objects.filter(
+            site__project__organization__in=user_organizations
+        )
+
+    def perform_create(self, serializer):
+        """Verify user can edit the site"""
+        site = serializer.validated_data["site"]
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        serializer.save()
+
+    def perform_update(self, serializer):
+        """Verify user can edit the site"""
+        spatial_structure = self.get_object()
+        member = OrganizationMember.objects.get(
+            organization=spatial_structure.site.project.organization,
+            user=self.request.user,
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Verify user can edit the site"""
+        member = OrganizationMember.objects.get(
+            organization=instance.site.project.organization, user=self.request.user
+        )
+        if not member.can_delete_projects:
+            raise PermissionDenied(
+                "You don't have permission to delete structures from this site"
+            )
+
+        instance.delete()
+
+
+class AssetViewSet(viewsets.ModelViewSet):
+    """CRUD endpoints for assets (physical elements)"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AssetSerializer
+    filterset_fields = ["site", "asset_type", "spatial_element"]
+    search_fields = ["name", "description"]
+    ordering = ["spatial_element", "asset_type"]
+
+    def get_queryset(self):
+        """Return assets from sites user can access"""
+        if getattr(self, "swagger_fake_view", False):
+            return Asset.objects.none()
+
+        user_organizations = OrganizationMember.objects.filter(
+            user=self.request.user, is_active=True
+        ).values_list("organization", flat=True)
+
+        return Asset.objects.filter(site__project__organization__in=user_organizations)
+
+    def perform_create(self, serializer):
+        """Verify user can edit the site and set site context"""
+        site = serializer.validated_data["spatial_structure"].site
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        serializer.context["site"] = site
+        serializer.save(site=site)
+
+    def perform_update(self, serializer):
+        """Verify user can edit the site"""
+        asset = self.get_object()
+        member = OrganizationMember.objects.get(
+            organization=asset.site.project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Verify user can edit the site"""
+        member = OrganizationMember.objects.get(
+            organization=instance.site.project.organization, user=self.request.user
+        )
+        if not member.can_delete_projects:
+            raise PermissionDenied(
+                "You don't have permission to delete elements from this site"
+            )
+
+        instance.delete()
