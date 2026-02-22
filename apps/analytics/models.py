@@ -4,9 +4,17 @@ import pandas as pd
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
+import uuid
 
 
 class AnalyticsRun(models.Model):
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     ANALYTICS_TYPES = [
         ("qto", "Quantity Takeoff"),
         ("cost_estimate", "Cost Estimation"),

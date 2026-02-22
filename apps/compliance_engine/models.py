@@ -3,9 +3,17 @@ from apps.parametric_generator.models import GeneratedIFC
 import yaml
 from pathlib import Path
 from django.conf import settings
+import uuid
 
 
 class ComplianceCheck(models.Model):
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("passed", "Passed"),
@@ -31,6 +39,13 @@ class ComplianceCheck(models.Model):
 
 
 class RulePack(models.Model):
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     name = models.CharField(max_length=255, unique=True)
     yaml_content = models.TextField()
     description = models.TextField(blank=True)
