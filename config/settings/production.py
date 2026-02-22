@@ -8,12 +8,13 @@ SESSION_COOKIE_SECURE = True
 
 CSRF_COOKIE_SECURE = True
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://bimflowsuite.com",
-    "https://api.bimflowsuite.com",
-]
+_allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = _allowed_origins.split(",") if _allowed_origins else []
+CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 
-CORS_ALLOWED_ORIGINS = ["https://bimflowsuite.com", "https://api.bimflowsuite.com"]
+CORS_ALLOW_CREDENTIALS = (
+    os.environ.get("CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
+)
 
 CORS_ALLOW_METHODS = [
     "DELETE",
