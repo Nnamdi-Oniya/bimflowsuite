@@ -3,11 +3,19 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
 import secrets
+import uuid
 
 
 class User(AbstractUser):
     """Custom User model with unique email constraint and profile fields."""
 
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     email = models.EmailField(
         unique=True, help_text="Email address - must be unique across all users"
     )
@@ -53,6 +61,13 @@ class User(AbstractUser):
 class PasswordResetToken(models.Model):
     """Model for storing password reset tokens with expiry."""
 
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -109,6 +124,13 @@ class PasswordResetToken(models.Model):
 class RequestSubmission(models.Model):
     """Model for request submissions from the frontend."""
 
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     REQUEST_TYPE_CHOICES = [
         ("request_demo", "Demo Request"),
         ("general_enquiries", "General Enquiries"),
@@ -185,6 +207,13 @@ class RequestSubmission(models.Model):
 class Organization(models.Model):
     """Represents a company, team, or organization grouping."""
 
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     name = models.CharField(max_length=255, help_text="Organization name")
     slug = models.SlugField(unique=True, help_text="URL-friendly identifier")
     domain = models.CharField(
@@ -228,6 +257,13 @@ class Organization(models.Model):
 class OrganizationMember(models.Model):
     """Manages user membership and roles within an organization."""
 
+    id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        primary_key=True,
+        serialize=False,
+        help_text="Unique identifier (UUID)",
+    )
     ROLE_CHOICES = [
         ("owner", "Owner"),
         ("admin", "Administrator"),
