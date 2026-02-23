@@ -25,6 +25,7 @@ from .serializers import (
     OrganizationMemberSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
+    ChangePasswordSerializer,
 )
 from .models import Organization, OrganizationMember, PasswordResetToken
 from helper.utils import send_request_notification
@@ -781,6 +782,65 @@ class ResetPasswordView(APIView):
             {
                 "success": True,
                 "message": "Password has been reset successfully. You can now login with your new password.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChangePasswordView(APIView):
+    """View for changing password for authenticated users."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Change password for authenticated user by providing current password",
+        request_body=ChangePasswordSerializer,
+        responses={
+            200: openapi.Response(
+                description="Password changed successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        "message": openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Bad request - validation errors",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        "error": openapi.Schema(type=openapi.TYPE_OBJECT),
+                    },
+                ),
+            ),
+            401: openapi.Response(description="Unauthorized"),
+        },
+    )
+    def post(self, request):
+        """Change current user's password."""
+        serializer = ChangePasswordSerializer(
+            data=request.data, context={"request": request}
+        )
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "success": False,
+                    "error": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save()
+
+        logger.info(f"Password changed successfully for user {request.user.email}")
+        return Response(
+            {
+                "success": True,
+                "message": "Password has been changed successfully.",
             },
             status=status.HTTP_200_OK,
         )
