@@ -285,12 +285,12 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
-                "<int:submission_id>/send-response/",
+                "<uuid:submission_id>/send-response/",
                 self.admin_site.admin_view(self.send_user_response),
                 name="send_user_response",
             ),
             path(
-                "<int:submission_id>/onboard-user/",
+                "<uuid:submission_id>/onboard-user/",
                 self.admin_site.admin_view(self.onboard_user_view),
                 name="onboard_user",
             ),

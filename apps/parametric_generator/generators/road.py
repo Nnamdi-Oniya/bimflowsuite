@@ -151,3 +151,25 @@ class RoadIFCGenerator(BaseIFCGenerator):
 
         except Exception as e:
             logger.debug(f"Road layer error: {str(e)}")
+
+
+def generate_road_ifc(project, specifications):
+    """
+    Backward-compatible function API used by view-layer generator_map.
+
+    Resolves the site from specifications.site_id or falls back to the
+    project's first site, then delegates to RoadIFCGenerator.
+    """
+    site_id = (specifications or {}).get("site_id")
+    sites = project.sites.all()
+    if site_id:
+        sites = sites.filter(id=site_id)
+    site = sites.order_by("created_at").first()
+    if site is None:
+        raise ValueError(
+            f"No site found for project {project.id}. "
+            "Provide specifications.site_id or create a site first."
+        )
+
+    generator = RoadIFCGenerator(site)
+    return generator.generate()
