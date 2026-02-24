@@ -8,6 +8,7 @@ from .views import (
     OrganizationMemberViewSet,
     ForgotPasswordView,
     ResetPasswordView,
+    ChangePasswordView,
     UserProfileView,
 )
 
@@ -28,6 +29,11 @@ urlpatterns = [
     ),
     path(
         "auth/reset-password/", ResetPasswordView.as_view(), name="auth_reset_password"
+    ),
+    path(
+        "auth/change-password/",
+        ChangePasswordView.as_view(),
+        name="auth_change_password",
     ),
     path(
         "user/request-submission/",

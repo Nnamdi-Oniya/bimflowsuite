@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.utils import timezone
 import logging
 
@@ -14,11 +15,10 @@ from .serializers import (
     SiteSerializer,
     SpatialStructureSerializer,
     AssetSerializer,
-    AssetSimpleSerializer,
     SiteStructureSerializer,
 )
 from .tasks import generate_ifc_for_site
-from apps.users.models import Organization, OrganizationMember
+from apps.users.models import OrganizationMember
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,29 @@ logger = logging.getLogger(__name__)
 class IsOrganizationMember(permissions.BasePermission):
     """Permission check: user must be a member of the organization"""
 
+    @staticmethod
+    def _extract_organization(obj):
+        """Resolve organization from supported object types."""
+        if hasattr(obj, "organization"):
+            return obj.organization
+
+        if hasattr(obj, "project"):
+            project = obj.project
+            if hasattr(project, "organization"):
+                return project.organization
+
+        if hasattr(obj, "site"):
+            site = obj.site
+            if hasattr(site, "project") and hasattr(site.project, "organization"):
+                return site.project.organization
+
+        return None
+
     def has_object_permission(self, request, view, obj):
-        # obj is a Project
-        organization = obj.organization
+        organization = self._extract_organization(obj)
+        if organization is None:
+            return False
+
         return OrganizationMember.objects.filter(
             organization=organization, user=request.user, is_active=True
         ).exists()
@@ -71,7 +91,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
     serializer_class = ProjectSerializer
-    filterset_fields = ["status", "building_type", "organization"]
+    filterset_fields = ["phase", "project_type", "organization", "approval_status"]
     search_fields = ["name", "project_number", "description"]
     ordering_fields = ["created_at", "updated_at", "name"]
     ordering = ["-created_at"]
@@ -160,13 +180,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 "id": project.id,
                 "name": project.name,
                 "project_number": project.project_number,
-                "status": project.status,
-                "building_type": project.building_type,
+                "project_type": project.project_type,
+                "phase": project.phase,
                 "ifc_generation_count": project.generated_ifcs.count(),
                 "completed_ifcs": project.generated_ifcs.filter(
                     status="completed"
                 ).count(),
                 "failed_ifcs": project.generated_ifcs.filter(status="failed").count(),
+                "site_count": project.sites.count(),
                 "created_at": project.created_at,
                 "updated_at": project.updated_at,
             }
@@ -187,10 +208,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
             errors.append("Project name is required")
         if not project.project_number:
             errors.append("Project number is required")
-        if not project.building_type:
-            errors.append("Building type is required")
-        if project.latitude is None or project.longitude is None:
-            errors.append("Location coordinates are required")
+        if not project.project_type:
+            errors.append("Project type is required")
+
+        sites = project.sites.all()
+        if not sites.exists():
+            errors.append("At least one site is required")
+        elif not sites.filter(
+            latitude__isnull=False, longitude__isnull=False
+        ).exists():
+            errors.append("At least one site with latitude/longitude is required")
 
         if errors:
             return Response(
@@ -288,6 +315,7 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
         """Create new GeneratedIFC for a project with specifications"""
         project_id = request.data.get("project_id")
         asset_type = request.data.get("asset_type")
+        ifc_schema_version = request.data.get("ifc_schema_version") or "ifc4x3"
         specifications = request.data.get("specifications", {})
 
         if not project_id or not asset_type:
@@ -299,9 +327,20 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
         project = get_object_or_404(Project, id=project_id)
 
         # Check permissions
-        if project.user != request.user:
+        try:
+            member = OrganizationMember.objects.get(
+                organization=project.organization, user=request.user, is_active=True
+            )
+        except OrganizationMember.DoesNotExist:
             return Response(
                 {"error": "Unauthorized"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not member.can_edit_projects:
+            return Response(
+                {
+                    "error": "You don't have permission to generate IFCs in this organization"
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -309,6 +348,7 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
         ifc = GeneratedIFC.objects.create(
             project=project,
             asset_type=asset_type,
+            ifc_schema_version=ifc_schema_version,
             specifications=specifications,
             status="pending",
         )
@@ -703,34 +743,63 @@ class SpatialStructureViewSet(viewsets.ModelViewSet):
             site__project__organization__in=user_organizations
         )
 
+    def create(self, request, *args, **kwargs):
+        """
+        Create spatial structure(s).
+
+        Supports:
+        - Single-node create (existing behavior)
+        - Nested tree create in one request when `children` is provided
+        """
+        payload = request.data
+        if not isinstance(payload, dict):
+            raise ValidationError("Invalid payload format")
+
+        # Keep default DRF behavior for legacy single-node requests.
+        if "children" not in payload:
+            return super().create(request, *args, **kwargs)
+
+        site_id = payload.get("site")
+        if not site_id:
+            raise ValidationError({"site": "site is required"})
+
+        site = get_object_or_404(Site, id=site_id)
+        self._ensure_can_edit_site(site)
+
+        parent = None
+        parent_id = payload.get("parent")
+        if parent_id:
+            parent = get_object_or_404(SpatialStructure, id=parent_id, site=site)
+
+        with transaction.atomic():
+            root_structure = self._create_structure_tree(site, payload, parent=parent)
+
+        serializer = self.get_serializer(root_structure, context={"request": request})
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
         """Verify user can edit the site"""
         site = serializer.validated_data["site"]
-        member = OrganizationMember.objects.get(
-            organization=site.project.organization, user=self.request.user
-        )
-        if not member.can_edit_projects:
-            raise PermissionDenied("You don't have permission to edit this site")
-
+        self._ensure_can_edit_site(site)
         serializer.save()
 
     def perform_update(self, serializer):
         """Verify user can edit the site"""
         spatial_structure = self.get_object()
-        member = OrganizationMember.objects.get(
-            organization=spatial_structure.site.project.organization,
-            user=self.request.user,
-        )
-        if not member.can_edit_projects:
-            raise PermissionDenied("You don't have permission to edit this site")
-
+        self._ensure_can_edit_site(spatial_structure.site)
         serializer.save()
 
     def perform_destroy(self, instance):
         """Verify user can edit the site"""
-        member = OrganizationMember.objects.get(
-            organization=instance.site.project.organization, user=self.request.user
-        )
+        try:
+            member = OrganizationMember.objects.get(
+                organization=instance.site.project.organization,
+                user=self.request.user,
+                is_active=True,
+            )
+        except OrganizationMember.DoesNotExist:
+            raise PermissionDenied("You don't have permission to delete this site")
         if not member.can_delete_projects:
             raise PermissionDenied(
                 "You don't have permission to delete structures from this site"
@@ -738,15 +807,71 @@ class SpatialStructureViewSet(viewsets.ModelViewSet):
 
         instance.delete()
 
+    def _ensure_can_edit_site(self, site):
+        """Check organization membership and edit permission for a site."""
+        try:
+            member = OrganizationMember.objects.get(
+                organization=site.project.organization,
+                user=self.request.user,
+                is_active=True,
+            )
+        except OrganizationMember.DoesNotExist:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+    def _create_structure_tree(self, site, node, parent=None):
+        """Recursively create spatial structures from a nested payload."""
+        if not isinstance(node, dict):
+            raise ValidationError({"children": "Each child must be an object"})
+
+        spatial_type = node.get("spatial_type")
+        name = node.get("name")
+        if not spatial_type:
+            raise ValidationError({"spatial_type": "spatial_type is required"})
+        if not name:
+            raise ValidationError({"name": "name is required"})
+
+        level = parent.level + 1 if parent else 0
+        structure = SpatialStructure.objects.create(
+            site=site,
+            parent=parent,
+            spatial_type=spatial_type,
+            name=name,
+            description=node.get("description", ""),
+            level=level,
+            order_in_parent=node.get("order_in_parent", 0),
+            properties=node.get("properties", {}),
+        )
+
+        children = node.get("children", [])
+        if children is None:
+            children = []
+        if not isinstance(children, list):
+            raise ValidationError({"children": "children must be a list"})
+
+        for index, child_node in enumerate(children):
+            if (
+                isinstance(child_node, dict)
+                and child_node.get("order_in_parent") is None
+                and "order_in_parent" not in child_node
+            ):
+                child_node = dict(child_node)
+                child_node["order_in_parent"] = index
+            self._create_structure_tree(site, child_node, parent=structure)
+
+        return structure
+
 
 class AssetViewSet(viewsets.ModelViewSet):
     """CRUD endpoints for assets (physical elements)"""
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AssetSerializer
-    filterset_fields = ["site", "asset_type", "spatial_element"]
+    filterset_fields = ["site", "asset_type", "spatial_structure"]
     search_fields = ["name", "description"]
-    ordering = ["spatial_element", "asset_type"]
+    ordering = ["spatial_structure", "asset_type"]
 
     def get_queryset(self):
         """Return assets from sites user can access"""

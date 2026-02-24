@@ -34,7 +34,7 @@ urlpatterns = [
     ),
     path("projects/", ProjectViewSet.as_view({"get": "list"}), name="project-list"),
     path(
-        "projects/<int:pk>/",
+        "projects/<uuid:pk>/",
         ProjectViewSet.as_view(
             {
                 "get": "retrieve",
@@ -56,7 +56,7 @@ urlpatterns = [
     ),
     path("sites/", SiteViewSet.as_view({"get": "list"}), name="site-list"),
     path(
-        "sites/<int:pk>/",
+        "sites/<uuid:pk>/",
         SiteViewSet.as_view(
             {
                 "get": "retrieve",
@@ -69,7 +69,7 @@ urlpatterns = [
     ),
     # Site structure endpoint (spatial elements + assets hierarchy)
     path(
-        "sites/<int:pk>/structure/",
+        "sites/<uuid:pk>/structure/",
         SiteViewSet.as_view(
             {
                 "get": "structure",
