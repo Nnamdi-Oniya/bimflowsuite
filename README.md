@@ -10,6 +10,16 @@
 - **Manage projects** across multiple organizations with full multi-tenant support
 - **Track project workflows** from concept through as-built documentation
 
+## 🎯 Who This Is For
+
+BIMFlow Suite is designed for:
+
+- BIM engineers and architects  
+- Construction technology teams  
+- AECO software developers  
+- Infrastructure and digital twin teams  
+- Organizations managing large-scale building workflows  
+
 ## Key Features
 
 | Feature | Description |
