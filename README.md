@@ -355,8 +355,6 @@ See [bimflowsuite-ui/README.md](../bimflowsuite-ui/README.md#build-for-productio
 
 ## API Endpoints Overview
 
-## API Endpoints Overview
-
 ### Authentication
 - `POST /api/v1/auth/login/` — Get JWT access & refresh tokens
 - `POST /api/v1/auth/register/` — Create new user account
