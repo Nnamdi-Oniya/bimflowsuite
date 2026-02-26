@@ -8,7 +8,7 @@
 
 ## Overview
 
-**BIMFlow Suite** is a comprehensive, open-source BIM automation platform that streamlines Building Information Modeling processes through intelligent IFC generation, compliance checking, and detailed analysis. It combines a powerful python Django REST API backend with a modern React + Vite frontend to provide architects, engineers, and contractors with tools to:
+**BIMFlow Suite** is a comprehensive, open-source BIM automation platform that streamlines Building Information Modeling processes through intelligent IFC generation, compliance checking, and detailed analysis. It combines a powerful Python Django REST API backend with a modern React + Vite frontend to provide architects, engineers, and contractors with tools to:
 
 - **Generate IFC files** programmatically from detailed project specifications
 - **Upload and analyze** existing IFC files for comprehensive metrics extraction
