@@ -80,34 +80,9 @@ BIMFlow Suite is designed for:
 
 ## Architecture at a Glance
 
-```
-┌─────────────────────────────────────────────┐
-│  FRONTEND (React + Vite + TypeScript)      │
-│  - Upload IFC / Generate New               │
-│  - Compliance Checks / Analytics           │
-│  - Account Management & Dashboard          │
-└─────────────────┬───────────────────────────┘
-                  │ HTTP (JWT)
-                  ▼
-┌─────────────────────────────────────────────┐
-│  DJANGO REST API                            │
-│  ├─ /auth/ (Users App)                      │
-│  ├─ /generate/ (Parametric Generator)       │
-│  ├─ /compliance/ (Compliance Engine)        │
-│  └─ /analytics/ (Upload & Analysis)         │
-└─────────────────┬───────────────────────────┘
-                  │
-         ┌────────┼────────┐
-         ▼        ▼        ▼
-    ┌────────┬────────┬────────┐
-    │ Models │ Tasks  │Engines │
-    └────────┴────────┴────────┘
-                  │
-                  ▼
-    ┌──────────────────────────┐
-    │ PostgreSQL + Redis + S3  │
-    └──────────────────────────┘
-```
+## Architecture Overview
+
+![BIMFlow Suite Architecture](./docs/bimflowsuite-architecture.png)
 
 ### Application Structure
 
