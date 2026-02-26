@@ -39,7 +39,7 @@ BIMFlow Suite is designed for:
 - Infrastructure and digital twin teams  
 - Organizations managing large-scale building workflows
 
-- ## 👥 Contributors
+## 👥 Contributors
 
 - Nnamdi Oniya — Creator & Lead Developer
 
