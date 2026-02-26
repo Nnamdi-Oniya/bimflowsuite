@@ -1,4 +1,4 @@
-![CI](https://github.com/.../actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Nnamdi-Oniya/bimflowsuite/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Django](https://img.shields.io/badge/django-5.2-green)
