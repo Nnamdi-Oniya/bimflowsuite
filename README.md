@@ -80,7 +80,6 @@ BIMFlow Suite is designed for:
 
 ## Architecture at a Glance
 
-## Architecture Overview
 
 ![BIMFlow Suite Architecture](./docs/bimflowsuite-architecture.png)
 
