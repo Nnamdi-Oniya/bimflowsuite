@@ -1,4 +1,10 @@
+![CI](https://github.com/.../actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Django](https://img.shields.io/badge/django-5.2-green)
+
 # BIMFlow Suite - Cloud-Native BIM Automation Platform
+> Cloud-native BIM automation and compliance platform for scalable IFC generation, validation, and analytics.
 
 ## Overview
 
@@ -10,6 +16,19 @@
 - **Manage projects** across multiple organizations with full multi-tenant support
 - **Track project workflows** from concept through as-built documentation
 
+## 🚨 Why BIMFlow Suite Exists
+
+BIM workflows remain fragmented, manual, and difficult to validate at scale.
+Most teams rely on heavyweight desktop tools with limited automation.
+
+BIMFlow Suite introduces a cloud-native, API-first approach to:
+
+- automated IFC generation  
+- rule-based compliance validation  
+- scalable BIM analytics pipelines  
+
+This enables AECO teams to integrate BIM validation directly into modern DevOps and digital twin workflows.
+
 ## 🎯 Who This Is For
 
 BIMFlow Suite is designed for:
@@ -18,7 +37,13 @@ BIMFlow Suite is designed for:
 - Construction technology teams  
 - AECO software developers  
 - Infrastructure and digital twin teams  
-- Organizations managing large-scale building workflows  
+- Organizations managing large-scale building workflows
+
+- ## 👥 Contributors
+
+- Nnamdi Oniya — Creator & Lead Developer
+
+
 
 ## Key Features
 
