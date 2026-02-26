@@ -101,7 +101,7 @@ We provide an automated setup script that handles everything for you:
 
 ```bash
 # Download and run the setup script
-curl -O https://raw.githubusercontent.com/Nnamdi-Oniya/bimflowsuite/main/setup.sh
+curl -O https://raw.githubusercontent.com/Nnamdi-Oniya/bimflowsuite/develop/setup.sh
 chmod +x setup.sh
 ./setup.sh
 ```
