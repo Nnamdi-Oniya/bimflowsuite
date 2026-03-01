@@ -1,14 +1,49 @@
+![CI](https://github.com/Nnamdi-Oniya/bimflowsuite/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Django](https://img.shields.io/badge/django-5.2-green)
+
 # BIMFlow Suite - Cloud-Native BIM Automation Platform
+> Cloud-native BIM automation and compliance platform for scalable IFC generation, validation, and analytics.
 
 ## Overview
 
-**BIMFlow Suite** is a comprehensive, open-source BIM automation platform that streamlines Building Information Modeling processes through intelligent IFC generation, compliance checking, and detailed analysis. It combines a powerful python Django REST API backend with a modern React + Vite frontend to provide architects, engineers, and contractors with tools to:
+**BIMFlow Suite** is a comprehensive, open-source BIM automation platform that streamlines Building Information Modeling processes through intelligent IFC generation, compliance checking, and detailed analysis. It combines a powerful Python Django REST API backend with a modern React + Vite frontend to provide architects, engineers, and contractors with tools to:
 
 - **Generate IFC files** programmatically from detailed project specifications
 - **Upload and analyze** existing IFC files for comprehensive metrics extraction
 - **Run compliance checks** against YAML-based rule packs with advanced clash detection
 - **Manage projects** across multiple organizations with full multi-tenant support
 - **Track project workflows** from concept through as-built documentation
+
+## 🚨 Why BIMFlow Suite Exists
+
+BIM workflows remain fragmented, manual, and difficult to validate at scale.
+Most teams rely on heavyweight desktop tools with limited automation.
+
+BIMFlow Suite introduces a cloud-native, API-first approach to:
+
+- automated IFC generation  
+- rule-based compliance validation  
+- scalable BIM analytics pipelines  
+
+This enables AECO teams to integrate BIM validation directly into modern DevOps and digital twin workflows.
+
+## 🎯 Who This Is For
+
+BIMFlow Suite is designed for:
+
+- BIM engineers and architects  
+- Construction technology teams  
+- AECO software developers  
+- Infrastructure and digital twin teams  
+- Organizations managing large-scale building workflows
+
+## 👥 Contributors
+
+- Nnamdi Oniya — Creator & Lead Developer
+
+
 
 ## Key Features
 
@@ -45,34 +80,8 @@
 
 ## Architecture at a Glance
 
-```
-┌─────────────────────────────────────────────┐
-│  FRONTEND (React + Vite + TypeScript)      │
-│  - Upload IFC / Generate New               │
-│  - Compliance Checks / Analytics           │
-│  - Account Management & Dashboard          │
-└─────────────────┬───────────────────────────┘
-                  │ HTTP (JWT)
-                  ▼
-┌─────────────────────────────────────────────┐
-│  DJANGO REST API                            │
-│  ├─ /auth/ (Users App)                      │
-│  ├─ /generate-model/ (Parametric Generator)       │
-│  ├─ /compliance/ (Compliance Engine)        │
-│  └─ /analytics/ (Upload & Analysis)         │
-└─────────────────┬───────────────────────────┘
-                  │
-         ┌────────┼────────┐
-         ▼        ▼        ▼
-    ┌────────┬────────┬────────┐
-    │ Models │ Tasks  │Engines │
-    └────────┴────────┴────────┘
-                  │
-                  ▼
-    ┌──────────────────────────┐
-    │ PostgreSQL + Redis + S3  │
-    └──────────────────────────┘
-```
+
+![BIMFlow Suite Architecture](./docs/bimflowsuite-architecture.png)
 
 ### Application Structure
 
@@ -91,7 +100,7 @@ We provide an automated setup script that handles everything for you:
 
 ```bash
 # Download and run the setup script
-curl -O https://raw.githubusercontent.com/Nnamdi-Oniya/bimflowsuite/main/setup.sh
+curl -O https://raw.githubusercontent.com/Nnamdi-Oniya/bimflowsuite/develop/setup.sh
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -342,8 +351,6 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
 ### Frontend
 
 See [bimflowsuite-ui/README.md](../bimflowsuite-ui/README.md#build-for-production) for frontend build instructions.
-
-## API Endpoints Overview
 
 ## API Endpoints Overview
 
