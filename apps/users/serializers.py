@@ -1,10 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from apps.users.models import RequestSubmission, PasswordResetToken
 from .models import Organization, OrganizationMember
+import re
 
 User = get_user_model()
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class LoginSerializer(serializers.Serializer):
@@ -31,6 +35,38 @@ class LoginSerializer(serializers.Serializer):
         raise serializers.ValidationError(
             "Both username/email and password are required."
         )
+
+
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """SimpleJWT serializer that accepts either username or email."""
+
+    username_or_email = serializers.CharField(required=True, write_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields.pop(self.username_field, None)
+
+    def validate(self, attrs):
+        username_or_email = (attrs.get("username_or_email") or "").strip()
+        password = attrs.get("password")
+        is_email = bool(EMAIL_PATTERN.match(username_or_email))
+
+        if is_email:
+            user = User.objects.filter(email__iexact=username_or_email).first()
+        else:
+            user = User.objects.filter(username__iexact=username_or_email).first()
+
+        if not user or not user.check_password(password) or not user.is_active:
+            raise AuthenticationFailed(
+                self.error_messages["no_active_account"],
+                "no_active_account",
+            )
+
+        refresh = self.get_token(user)
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }
 
 
 class RegisterSerializer(serializers.ModelSerializer):

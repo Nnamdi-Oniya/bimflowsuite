@@ -361,7 +361,11 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(
-        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path="generate-model",
+        url_name="generate-model",
     )
     def generate(self, request, pk=None):
         """Generate IFC file for a GeneratedIFC record"""

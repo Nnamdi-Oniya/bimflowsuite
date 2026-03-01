@@ -314,8 +314,6 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
                 )
                 body = f"""Dear {submission.firstname} {submission.lastname},
 
-Thank you for your {submission.get_request_type_display().lower()} submission.
-
 {response_text}
 
 Best regards,

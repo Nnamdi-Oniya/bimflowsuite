@@ -3,6 +3,7 @@
 import logging
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
+from django.template.loader import render_to_string
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
@@ -17,7 +18,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-def send_admin_notification(subject, body, recipient_email=None):
+def send_admin_notification(subject, body, recipient_email=None, html_body=None):
     """
     Send email notification to admin with customizable content.
 
@@ -25,6 +26,7 @@ def send_admin_notification(subject, body, recipient_email=None):
         subject: Email subject line
         body: Email body content
         recipient_email: Optional recipient email (defaults to ADMIN_EMAIL setting)
+        html_body: Optional HTML email content
 
     Returns:
         True if email sent successfully, False otherwise
@@ -40,6 +42,8 @@ def send_admin_notification(subject, body, recipient_email=None):
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[admin_email],
         )
+        if html_body:
+            email.attach_alternative(html_body, "text/html")
         email.send(fail_silently=False)
         return True
     except Exception as e:
@@ -137,6 +141,47 @@ def send_request_notification(submission):
     submission.save(update_fields=["email_sent"])
 
     return email_sent
+
+
+def send_submission_acknowledgement(submission):
+    """
+    Send acknowledgement email to user confirming request receipt.
+
+    Args:
+        submission: RequestSubmission instance
+
+    Returns:
+        True if email sent successfully, False otherwise
+    """
+    subject = "We've received your request - BIMFlow Suite"
+    body = f"""Hello {submission.firstname} {submission.lastname},
+
+Thank you for contacting BIMFlow Suite.
+
+We have received your {submission.get_request_type_display().lower()} request and our team will get in touch with you within the next 48 hours.
+
+If you need to add more details in the meantime, simply reply to this email.
+
+Best regards,
+BIMFlow Suite Team
+"""
+
+    return send_admin_notification(subject, body, recipient_email=submission.email)
+
+
+def send_request_notifications(submission):
+    """
+    Send both admin notification and user acknowledgement emails.
+
+    Args:
+        submission: RequestSubmission instance
+
+    Returns:
+        dict with send statuses
+    """
+    admin_sent = send_request_notification(submission)
+    user_ack_sent = send_submission_acknowledgement(submission)
+    return {"admin_sent": admin_sent, "user_ack_sent": user_ack_sent}
 
 
 def create_onboarding_user(submission):
@@ -266,6 +311,8 @@ def create_onboarding_user(submission):
 
 Welcome to BIMFlow Suite! Your account has been created by our team.
 
+Your username: {user.username}
+
 To complete your registration and set your password, click the link below:
 
 {password_setup_url}
@@ -286,8 +333,22 @@ Best regards,
 BIMFlow Suite Team
         """
 
+        html_body = render_to_string(
+            "emails/onboarding_welcome.html",
+            {
+                "first_name": submission.firstname,
+                "last_name": submission.lastname,
+                "username": user.username,
+                "password_setup_url": password_setup_url,
+                "project_name": project.name if project else "",
+            },
+        )
+
         email_sent = send_admin_notification(
-            subject, body, recipient_email=submission.email
+            subject,
+            body,
+            recipient_email=submission.email,
+            html_body=html_body,
         )
 
         if email_sent:
@@ -323,6 +384,8 @@ def send_onboarding_email(user, email):
         body = f"""Dear {user.first_name} {user.last_name},
 
 Your BIMFlow Suite account has been created.
+
+Your username: {user.username}
 
 To complete your registration and set your password, use the following credentials:
 

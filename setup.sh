@@ -53,6 +53,15 @@ check_command "python3"
 check_command "npm"
 check_command "psql"
 
+# Ensure PostgreSQL client version is 15+
+PSQL_VERSION_RAW=$(psql --version | awk '{print $3}')
+PSQL_MAJOR_VERSION=$(echo "$PSQL_VERSION_RAW" | cut -d'.' -f1)
+if [ -z "$PSQL_MAJOR_VERSION" ] || [ "$PSQL_MAJOR_VERSION" -lt 15 ]; then
+    echo -e "${RED} PostgreSQL 15+ is required. Detected: $PSQL_VERSION_RAW${NC}"
+    echo -e "${YELLOW}   Please upgrade PostgreSQL and try again.${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN} All prerequisites installed\n${NC}"
 
 # ==================== STEP 2: Clone Repository ====================

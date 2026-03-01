@@ -35,7 +35,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "graphene_django",
     "channels",
-    "drf_yasg",  # Added for Swagger (PRD API docs)
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -142,6 +142,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",  # FIXED: Added for browsable API/Swagger login
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
@@ -202,18 +203,31 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# Swagger Settings (for Bearer auth UI)
-SWAGGER_SETTINGS = {
-    "USE_SESSION_AUTH": False,
-    "SECURITY_DEFINITIONS": {
-        "Bearer": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-            "description": 'JWT token: POST /api/token/ for token, paste as "Bearer <token>". Expires 60 mins.',
+# drf-spectacular OpenAPI settings
+SPECTACULAR_SETTINGS = {
+    "TITLE": "BIMFlow Suite API",
+    "DESCRIPTION": (
+        "Open-source BIM automation toolkit. Authenticate via /api/v1/auth/login/ "
+        "or /api/token/, then click Authorize and enter: <access_token>."
+    ),
+    "VERSION": "v1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
+    "SCHEMA_PATH_PREFIX_TRIM": False,
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "operationsSorter": "alpha",
+    },
+    "SECURITY": [{"BearerAuth": []}],
+    "COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
         }
     },
-    "OPERATIONS_SORTER": "alpha",
 }
 
 # PostgreSQL Configuration

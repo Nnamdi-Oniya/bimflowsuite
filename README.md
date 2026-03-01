@@ -32,7 +32,7 @@
 - **Task Queue**: Celery + Redis for async processing
 - **Real-time**: Django Channels + Redis for WebSocket support
 - **IFC Processing**: ifcopenshell for parsing and generating IFC files
-- **API Documentation**: drf-yasg (Swagger) + GraphQL support
+- **API Documentation**: drf-spectacular (OpenAPI/Swagger) + GraphQL support
 - **Authentication**: djangorestframework-simplejwt (JWT)
 
 ### Frontend
@@ -57,7 +57,7 @@
 ┌─────────────────────────────────────────────┐
 │  DJANGO REST API                            │
 │  ├─ /auth/ (Users App)                      │
-│  ├─ /generate/ (Parametric Generator)       │
+│  ├─ /generate-model/ (Parametric Generator)       │
 │  ├─ /compliance/ (Compliance Engine)        │
 │  └─ /analytics/ (Upload & Analysis)         │
 └─────────────────┬───────────────────────────┘
@@ -121,7 +121,7 @@ If you prefer to set up manually or the script doesn't work in your environment:
 
 - **Python**: 3.10 or higher
 - **Node.js**: 18+ with npm
-- **Database**: PostgreSQL 12+
+- **Database**: PostgreSQL 15+
 - **Cache/Queue**: Redis 6+
 - **Storage**: Local disk or AWS S3 (optional)
 - **OS**: macOS, Linux, or Windows (WSL2 recommended)
@@ -281,7 +281,7 @@ You should see:
 # Install PostgreSQL
 brew install postgresql  # macOS
 # or
-sudo apt-get install postgresql-12 postgresql-contrib-12  # Linux
+sudo apt-get install postgresql-15 postgresql-contrib-15  # Linux
 
 # Start PostgreSQL service
 brew services start postgresql  # macOS
@@ -354,14 +354,14 @@ See [bimflowsuite-ui/README.md](../bimflowsuite-ui/README.md#build-for-productio
 - `POST /api/token/refresh/` — Refresh expired access token
 
 ### Projects & IFC Generation
-- `GET /api/v1/generate/projects/` — List user projects (paginated, filterable)
-- `POST /api/v1/generate/projects/` — Create new project
-- `GET /api/v1/generate/projects/{id}/` — Get project details (all 30+ fields)
-- `PUT /api/v1/generate/projects/{id}/` — Update project
-- `DELETE /api/v1/generate/projects/{id}/` — Delete project
-- `POST /api/v1/generate/ifcs/create_for_project/` — Generate IFC from project
-- `GET /api/v1/generate/ifcs/` — List generated IFCs
-- `GET /api/v1/generate/ifcs/{id}/` — Get IFC details & download link
+- `GET /api/v1/generate-model/projects/` — List user projects (paginated, filterable)
+- `POST /api/v1/generate-model/projects/` — Create new project
+- `GET /api/v1/generate-model/projects/{id}/` — Get project details (all 30+ fields)
+- `PUT /api/v1/generate-model/projects/{id}/` — Update project
+- `DELETE /api/v1/generate-model/projects/{id}/` — Delete project
+- `POST /api/v1/generate-model/ifcs/create_for_project/` — Generate IFC from project
+- `GET /api/v1/generate-model/ifcs/` — List generated IFCs
+- `GET /api/v1/generate-model/ifcs/{id}/` — Get IFC details & download link
 
 ### Upload & Analytics
 - `POST /api/v1/analytics/upload_ifc/` — Upload existing IFC file
@@ -409,7 +409,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### 2. Create a Project
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/generate/projects/ \
+curl -X POST http://localhost:8000/api/v1/generate-model/projects/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -432,7 +432,7 @@ curl -X POST http://localhost:8000/api/v1/generate/projects/ \
 ### 3. Generate IFC File
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/generate/ifcs/create_for_project/ \
+curl -X POST http://localhost:8000/api/v1/generate-model/ifcs/create_for_project/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -581,7 +581,7 @@ Every project stores comprehensive BIM information organized into sections:
 ### IFC Generation Workflow
 
 1. **User creates Project** with specifications
-2. **Frontend calls** `POST /api/v1/generate/ifcs/create_for_project/`
+2. **Frontend calls** `POST /api/v1/generate-model/ifcs/create_for_project/`
 3. **Backend queues** Celery task
 4. **Celery worker** loads appropriate generator (building.py, road.py, etc.)
 5. **Generator** uses ifcopenshell to construct IFC entities

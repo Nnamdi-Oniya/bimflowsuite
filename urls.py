@@ -5,39 +5,26 @@ from django.conf.urls.static import static
 from django.shortcuts import redirect
 
 # REST Framework & JWT
-from rest_framework import permissions
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.users.views import EmailOrUsernameTokenObtainPairView
 
 # GraphQL
 from graphene_django.views import GraphQLView
 import schema
 
-# Swagger / ReDoc Documentation
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
-from drf_yasg.generators import OpenAPISchemaGenerator
+# OpenAPI / Swagger / ReDoc Documentation (drf-spectacular)
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
 
 # Customize admin site
 admin.site.site_header = "BIMFlow Suite Admin"
 admin.site.site_title = "BIMFlow Suite"
 admin.site.index_title = "Welcome to BIMFlow Suite Administration"
 
-
-# -------------------------------------------------
-# 🔹 API Documentation (Swagger + ReDoc)
-# -------------------------------------------------
-schema_view = get_schema_view(
-    openapi.Info(
-        title="BIMFlow Suite API",
-        default_version="v1",
-        description="Open-source BIM automation toolkit. Authenticate via /api/v1/auth/login/ to get JWT token, then use Authorize button in Swagger to test endpoints.",
-        contact=openapi.Contact(email="support@bimflow.dev"),
-        license=openapi.License(name="MIT License"),
-    ),
-    public=True,
-    permission_classes=(permissions.AllowAny,),
-    generator_class=OpenAPISchemaGenerator,
-)
 
 # -------------------------------------------------
 # 🔹 URL Patterns
@@ -52,15 +39,32 @@ urlpatterns = [
     # REST Framework built-in (for browsable API)
     path("api-auth/", include("rest_framework.urls")),
     # JWT Authentication endpoints
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path(
+        "api/token/",
+        EmailOrUsernameTokenObtainPairView.as_view(),
+        name="token_obtain_pair",
+    ),
+    path(
+        "api/token/refresh/",
+        extend_schema_view(
+            post=extend_schema(
+                tags=["token"],
+                description="Refresh JWT access token using a valid refresh token.",
+            )
+        )(TokenRefreshView).as_view(),
+        name="token_refresh",
+    ),
     # GraphQL endpoint
     path("graphql/", GraphQLView.as_view(graphiql=True, schema=schema)),
+    # OpenAPI schema
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     # API Documentation
     path(
-        "swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="swagger-ui"
+        "swagger/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
     ),
-    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="redoc-ui"),
+    path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc-ui"),
 ]
 
 # Static & Media

@@ -79,7 +79,7 @@ urlpatterns = [
         name="site-structure",
     ),
     # Generate/IFC endpoints
-    path("generate/", include(generate_router.urls)),
+    path("generate-model/", include(generate_router.urls)),
     # Structure/Hierarchy endpoints
-    path("structure/", include(structure_router.urls)),
+    path("project-stucture/", include(structure_router.urls)),
 ]
