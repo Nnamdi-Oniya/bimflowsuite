@@ -4,17 +4,17 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.utils import timezone
 import logging
 
-from .models import Project, GeneratedIFC, Site, SpatialStructure, Asset
+from .models import Project, GeneratedIFC, Site, Facility, SpatialStructure, Element
 from .serializers import (
     ProjectSerializer,
     ProjectDetailSerializer,
     GeneratedIFCSerializer,
     SiteSerializer,
+    FacilitySerializer,
     SpatialStructureSerializer,
-    AssetSerializer,
+    ElementSerializer,
     SiteStructureSerializer,
 )
 from .tasks import generate_ifc_for_site
@@ -52,38 +52,6 @@ class IsOrganizationMember(permissions.BasePermission):
         return OrganizationMember.objects.filter(
             organization=organization, user=request.user, is_active=True
         ).exists()
-
-
-class CanEditProject(permissions.BasePermission):
-    """Permission check: user must have edit permission"""
-
-    def has_object_permission(self, request, view, obj):
-        # obj is a Project
-        if not OrganizationMember.objects.filter(
-            organization=obj.organization, user=request.user, is_active=True
-        ).exists():
-            return False
-
-        member = OrganizationMember.objects.get(
-            organization=obj.organization, user=request.user
-        )
-        return member.can_edit_projects
-
-
-class CanDeleteProject(permissions.BasePermission):
-    """Permission check: user must have delete permission"""
-
-    def has_object_permission(self, request, view, obj):
-        # obj is a Project
-        if not OrganizationMember.objects.filter(
-            organization=obj.organization, user=request.user, is_active=True
-        ).exists():
-            return False
-
-        member = OrganizationMember.objects.get(
-            organization=obj.organization, user=request.user
-        )
-        return member.can_delete_projects
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -167,74 +135,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(
-        detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated]
-    )
-    def summary(self, request, pk=None):
-        """Get project summary: metadata + generated IFC count"""
-        project = self.get_object()
-        self.check_object_permissions(request, project)
 
-        return Response(
-            {
-                "id": project.id,
-                "name": project.name,
-                "project_number": project.project_number,
-                "project_type": project.project_type,
-                "phase": project.phase,
-                "ifc_generation_count": project.generated_ifcs.count(),
-                "completed_ifcs": project.generated_ifcs.filter(
-                    status="completed"
-                ).count(),
-                "failed_ifcs": project.generated_ifcs.filter(status="failed").count(),
-                "site_count": project.sites.count(),
-                "created_at": project.created_at,
-                "updated_at": project.updated_at,
-            }
-        )
-
-    @action(
-        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
-    def validate_specs(self, request, pk=None):
-        """Validate project specifications before IFC generation"""
-        project = self.get_object()
-        self.check_object_permissions(request, project)
-
-        errors = []
-
-        # Check required fields for IFC generation
-        if not project.name:
-            errors.append("Project name is required")
-        if not project.project_number:
-            errors.append("Project number is required")
-        if not project.project_type:
-            errors.append("Project type is required")
-
-        sites = project.sites.all()
-        if not sites.exists():
-            errors.append("At least one site is required")
-        elif not sites.filter(
-            latitude__isnull=False, longitude__isnull=False
-        ).exists():
-            errors.append("At least one site with latitude/longitude is required")
-
-        if errors:
-            return Response(
-                {"valid": False, "errors": errors}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return Response({"valid": True, "message": "Project specifications valid"})
-
-
-class GeneratedIFCViewSet(viewsets.ModelViewSet):
-    """CRUD endpoints for generated IFC files"""
+class GeneratedIFCViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only endpoints for generated IFC files"""
 
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
     serializer_class = GeneratedIFCSerializer
     filterset_fields = ["project", "asset_type", "status"]
     ordering_fields = ["created_at", "completed_at"]
     ordering = ["-created_at"]
+    http_method_names = ["get", "head", "options"]
 
     def get_queryset(self):
         """Return only IFCs from projects in user's organizations"""
@@ -275,206 +185,12 @@ class GeneratedIFCViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "download_url": request.build_absolute_uri(ifc.ifc_file.url),
+                "download_url": ifc.ifc_file.url,
                 "filename": ifc.ifc_file.name,
                 "file_size": ifc.file_size,
                 "asset_type": ifc.get_asset_type_display(),
             }
         )
-
-    @action(
-        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
-    def regenerate(self, request, pk=None):
-        """Regenerate IFC file with same specs"""
-        ifc = self.get_object()
-        self.check_object_permissions(request, ifc)
-
-        # Reset IFC to pending status
-        ifc.status = "pending"
-        ifc.error_message = None
-        ifc.ifc_file = None
-        ifc.completed_at = None
-        ifc.save(update_fields=["status", "error_message", "ifc_file", "completed_at"])
-
-        logger.info(f"IFC regeneration requested: {ifc.id}")
-
-        return Response(
-            {
-                "message": "IFC regeneration queued",
-                "id": ifc.id,
-                "status": ifc.status,
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-    @action(
-        detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
-    def create_for_project(self, request):
-        """Create new GeneratedIFC for a project with specifications"""
-        project_id = request.data.get("project_id")
-        asset_type = request.data.get("asset_type")
-        ifc_schema_version = request.data.get("ifc_schema_version") or "ifc4x3"
-        specifications = request.data.get("specifications", {})
-
-        if not project_id or not asset_type:
-            return Response(
-                {"error": "project_id and asset_type are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        project = get_object_or_404(Project, id=project_id)
-
-        # Check permissions
-        try:
-            member = OrganizationMember.objects.get(
-                organization=project.organization, user=request.user, is_active=True
-            )
-        except OrganizationMember.DoesNotExist:
-            return Response(
-                {"error": "Unauthorized"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if not member.can_edit_projects:
-            return Response(
-                {
-                    "error": "You don't have permission to generate IFCs in this organization"
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # Create IFC record
-        ifc = GeneratedIFC.objects.create(
-            project=project,
-            asset_type=asset_type,
-            ifc_schema_version=ifc_schema_version,
-            specifications=specifications,
-            status="pending",
-        )
-
-        logger.info(
-            f"New IFC generation queued: {ifc.id} for project {project.id} asset_type {asset_type}"
-        )
-
-        serializer = self.get_serializer(ifc)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[permissions.IsAuthenticated],
-        url_path="generate-model",
-        url_name="generate-model",
-    )
-    def generate(self, request, pk=None):
-        """Generate IFC file for a GeneratedIFC record"""
-        ifc = self.get_object()
-        self.check_object_permissions(request, ifc)
-
-        if ifc.status != "pending":
-            return Response(
-                {"error": f"Cannot generate IFC with status: {ifc.status}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Update status to generating
-        ifc.status = "generating"
-        ifc.save(update_fields=["status"])
-
-        try:
-            # Import all generators
-            from .generators import building, road, bridge, tunnel, highrise, generic
-
-            generator_map = {
-                # Building types
-                "building": building.generate_building_ifc,
-                "residential": building.generate_building_ifc,
-                "commercial": building.generate_building_ifc,
-                "industrial": building.generate_building_ifc,
-                "institutional": building.generate_building_ifc,
-                # Infrastructure types
-                "road": road.generate_road_ifc,
-                "highway": road.generate_road_ifc,
-                "bridge": bridge.generate_bridge_ifc,
-                "tunnel": tunnel.generate_tunnel_ifc,
-                "railway": tunnel.generate_tunnel_ifc,  # Similar to tunnel
-                "parking": road.generate_road_ifc,  # Similar to road
-                # Utilities
-                "utility_network": generic.generate_generic_ifc,
-                "power_line": generic.generate_generic_ifc,
-                "pipeline": generic.generate_generic_ifc,
-                "water_system": generic.generate_generic_ifc,
-                "drainage": generic.generate_generic_ifc,
-                # Site/Landscape
-                "site": generic.generate_generic_ifc,
-                "landscape": generic.generate_generic_ifc,
-                "plaza": generic.generate_generic_ifc,
-                "park": generic.generate_generic_ifc,
-                # Specialized
-                "airport": generic.generate_generic_ifc,
-                "seaport": generic.generate_generic_ifc,
-                "dam": generic.generate_generic_ifc,
-                "solar_farm": generic.generate_generic_ifc,
-                "wind_farm": generic.generate_generic_ifc,
-                # MEP Systems
-                "hvac_system": generic.generate_generic_ifc,
-                "electrical_system": generic.generate_generic_ifc,
-                "plumbing_system": generic.generate_generic_ifc,
-                "fire_safety": generic.generate_generic_ifc,
-                # Specialized buildings
-                "highrise": highrise.generate_highrise_ifc,
-                # Other
-                "other": generic.generate_generic_ifc,
-            }
-
-            generator = generator_map.get(ifc.asset_type)
-            if not generator:
-                raise ValueError(f"No generator for asset type: {ifc.asset_type}")
-
-            # Call generator with project and specifications
-            ifc_content = generator(ifc.project, ifc.specifications)
-
-            # Save IFC file
-            filename = f"{ifc.project.project_number}_{ifc.asset_type}_{ifc.id}.ifc"
-            from django.core.files.base import ContentFile
-
-            ifc.ifc_file.save(filename, ContentFile(ifc_content), save=False)
-            ifc.file_size = len(
-                ifc_content.encode() if isinstance(ifc_content, str) else ifc_content
-            )
-            ifc.status = "completed"
-            ifc.completed_at = timezone.now()
-            ifc.error_message = None
-            ifc.save()
-
-            logger.info(f"IFC generation completed: {ifc.id}")
-
-            return Response(
-                {
-                    "message": "IFC generated successfully",
-                    "id": ifc.id,
-                    "status": ifc.status,
-                    "file_size": ifc.file_size,
-                    "completed_at": ifc.completed_at,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            ifc.status = "failed"
-            ifc.error_message = str(e)
-            ifc.save(update_fields=["status", "error_message"])
-            logger.error(f"IFC generation failed: {ifc.id} - {str(e)}", exc_info=True)
-
-            return Response(
-                {
-                    "error": "Generation failed",
-                    "message": str(e),
-                    "id": ifc.id,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
 
 class SiteViewSet(viewsets.ModelViewSet):
@@ -571,7 +287,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=["get", "put"],
+        methods=["get", "patch"],
         permission_classes=[permissions.IsAuthenticated],
     )
     def structure(self, request, pk=None):
@@ -588,7 +304,7 @@ class SiteViewSet(viewsets.ModelViewSet):
             serializer = SiteStructureSerializer(site, context={"request": request})
             return Response(serializer.data)
 
-        elif request.method == "PUT":
+        elif request.method == "PATCH":
             # Verify user has edit permission
             member = OrganizationMember.objects.get(
                 organization=site.project.organization, user=request.user
@@ -659,7 +375,8 @@ class SiteViewSet(viewsets.ModelViewSet):
 
         try:
             # Queue IFC generation task
-            task = generate_ifc_for_site.delay(str(site.id))
+            facility_id = request.data.get("facility")
+            task = generate_ifc_for_site.delay(str(site.id), facility_id)
 
             logger.info(
                 f"IFC generation task queued for site {site.id}: task_id={task.id}"
@@ -704,7 +421,7 @@ class SiteViewSet(viewsets.ModelViewSet):
         return spatial_struct
 
     def _create_asset(self, site, data):
-        """Create asset linked to a spatial structure"""
+        """Create element linked to a spatial structure"""
         spatial_structure_id = data.get("spatial_structure_id")
         try:
             spatial_structure = SpatialStructure.objects.get(
@@ -715,7 +432,7 @@ class SiteViewSet(viewsets.ModelViewSet):
                 f"Spatial structure {spatial_structure_id} not found in this site"
             )
 
-        Asset.objects.create(
+        Element.objects.create(
             spatial_structure=spatial_structure,
             site=site,
             asset_type=data.get("asset_type"),
@@ -868,25 +585,25 @@ class SpatialStructureViewSet(viewsets.ModelViewSet):
         return structure
 
 
-class AssetViewSet(viewsets.ModelViewSet):
-    """CRUD endpoints for assets (physical elements)"""
+class ElementViewSet(viewsets.ModelViewSet):
+    """CRUD endpoints for elements (physical components)"""
 
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AssetSerializer
+    serializer_class = ElementSerializer
     filterset_fields = ["site", "asset_type", "spatial_structure"]
     search_fields = ["name", "description"]
     ordering = ["spatial_structure", "asset_type"]
 
     def get_queryset(self):
-        """Return assets from sites user can access"""
+        """Return elements from sites user can access"""
         if getattr(self, "swagger_fake_view", False):
-            return Asset.objects.none()
+            return Element.objects.none()
 
         user_organizations = OrganizationMember.objects.filter(
             user=self.request.user, is_active=True
         ).values_list("organization", flat=True)
 
-        return Asset.objects.filter(site__project__organization__in=user_organizations)
+        return Element.objects.filter(site__project__organization__in=user_organizations)
 
     def perform_create(self, serializer):
         """Verify user can edit the site and set site context"""
@@ -902,9 +619,9 @@ class AssetViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """Verify user can edit the site"""
-        asset = self.get_object()
+        element = self.get_object()
         member = OrganizationMember.objects.get(
-            organization=asset.site.project.organization, user=self.request.user
+            organization=element.site.project.organization, user=self.request.user
         )
         if not member.can_edit_projects:
             raise PermissionDenied("You don't have permission to edit this site")
@@ -921,4 +638,50 @@ class AssetViewSet(viewsets.ModelViewSet):
                 "You don't have permission to delete elements from this site"
             )
 
+        instance.delete()
+
+
+class FacilityViewSet(viewsets.ModelViewSet):
+    """CRUD endpoints for facilities within sites"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = FacilitySerializer
+    filterset_fields = ["project", "site", "facility_type"]
+    search_fields = ["name", "description"]
+    ordering = ["name"]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Facility.objects.none()
+
+        user_organizations = OrganizationMember.objects.filter(
+            user=self.request.user, is_active=True
+        ).values_list("organization", flat=True)
+
+        return Facility.objects.filter(project__organization__in=user_organizations)
+
+    def perform_create(self, serializer):
+        project = serializer.validated_data["project"]
+        member = OrganizationMember.objects.get(
+            organization=project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to add facilities")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        facility = self.get_object()
+        member = OrganizationMember.objects.get(
+            organization=facility.project.organization, user=self.request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit facilities")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        member = OrganizationMember.objects.get(
+            organization=instance.project.organization, user=self.request.user
+        )
+        if not member.can_delete_projects:
+            raise PermissionDenied("You don't have permission to delete facilities")
         instance.delete()

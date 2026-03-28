@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
@@ -674,6 +675,7 @@ class UserProfileView(APIView):
     """Endpoint to get and update current user profile."""
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     @extend_schema(
         description="Get current user profile with all details.",
@@ -684,7 +686,7 @@ class UserProfileView(APIView):
     )
     def get(self, request):
         """Get current authenticated user's profile."""
-        serializer = UserProfileSerializer(request.user)
+        serializer = UserProfileSerializer(request.user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -699,7 +701,7 @@ class UserProfileView(APIView):
     def put(self, request):
         """Update current authenticated user's profile."""
         serializer = UserProfileSerializer(
-            request.user, data=request.data, partial=True
+            request.user, data=request.data, partial=True, context={"request": request}
         )
         if serializer.is_valid():
             serializer.save()

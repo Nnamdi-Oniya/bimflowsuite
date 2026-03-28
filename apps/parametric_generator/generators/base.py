@@ -6,13 +6,12 @@ SpatialStructure and Asset models. All project-type generators inherit
 from this class.
 """
 
-import uuid
 import logging
-from io import BytesIO
 from abc import ABC, abstractmethod
 from datetime import datetime
 from ifcopenshell import file as ifc_file
 from ifcopenshell import guid
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +79,7 @@ class BaseIFCGenerator(ABC):
 
     def _create_ifc_file(self):
         """Initialize IFC file with schema version from site configuration."""
-        # Convert lowercase schema version to ifcopenshell format
+      
         schema_version = self._get_ifc_schema_name(self.site.ifc_schema_version)
         self.ifc = ifc_file(schema=schema_version)
         logger.info(f"Created IFC file with schema version: {schema_version}")
@@ -99,8 +98,8 @@ class BaseIFCGenerator(ABC):
             "ifc4": "IFC4",
             "ifc4x3": "IFC4X3",
         }
-        return versions.get(site_version, "IFC4X3")  # Default to IFC4X3
-
+        return versions.get(site_version, "IFC4X3")
+    
     def _create_project_context(self):
         """
         Create base project, site, and building containers.
@@ -121,6 +120,8 @@ class BaseIFCGenerator(ABC):
             Precision=float(self.site.precision),
             WorldCoordinateSystem=self._create_local_placement(),
         )
+        # Attach context to project
+        project_ifc.RepresentationContexts = [context_3d]
 
         # Site
         site_ifc = self.ifc.createIfcSite(
@@ -143,7 +144,7 @@ class BaseIFCGenerator(ABC):
     def _create_local_placement(self):
         """Create 3D placement at origin."""
         axis2placement = self.ifc.createIfcAxis2Placement3D(
-            Location=self.ifc.createIfcCartesianPoint((0, 0, 0))
+            Location=self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
         )
         return self.ifc.createIfcLocalPlacement(
             PlacementRelTo=None, RelativePlacement=axis2placement
@@ -188,8 +189,15 @@ class BaseIFCGenerator(ABC):
         """
         spatial_type = spatial_struct.spatial_type
 
+        # Normalize properties (JSONField may be stored as string)
+        properties = self._normalize_properties(spatial_struct.properties)
+
         # Get elevation if available
-        elevation = spatial_struct.properties.get("elevation", 0)
+        # Use spatial elevation if provided; otherwise fall back to site elevation
+        elevation = properties.get("elevation")
+        if elevation is None and hasattr(self.site, "elevation"):
+            elevation = self.site.elevation or 0
+        elevation = elevation or 0
 
         # Create IFC element based on spatial type
         ifc_element = None
@@ -254,7 +262,7 @@ class BaseIFCGenerator(ABC):
             )
 
         # Add properties from JSON
-        self._add_spatial_properties(ifc_element, spatial_struct)
+        self._add_spatial_properties(ifc_element, properties)
 
         return ifc_element
 
@@ -384,9 +392,9 @@ class BaseIFCGenerator(ABC):
 
         return ifc_element
 
-    def _add_spatial_properties(self, ifc_element, spatial_struct):
+    def _add_spatial_properties(self, ifc_element, properties):
         """Add PropertySets to spatial element."""
-        if not spatial_struct.properties:
+        if not properties:
             return
 
         pset = self.ifc.createIfcPropertySet(
@@ -395,7 +403,7 @@ class BaseIFCGenerator(ABC):
             HasProperties=[],
         )
 
-        for key, value in spatial_struct.properties.items():
+        for key, value in properties.items():
             if isinstance(value, (int, float)):
                 prop = self.ifc.createIfcPropertySingleValue(
                     Name=key,
@@ -420,7 +428,8 @@ class BaseIFCGenerator(ABC):
 
     def _add_asset_properties(self, ifc_element, asset):
         """Add PropertySets and material to asset element."""
-        if not asset.properties:
+        properties = self._normalize_properties(asset.properties)
+        if not properties:
             return
 
         pset = self.ifc.createIfcPropertySet(
@@ -429,7 +438,7 @@ class BaseIFCGenerator(ABC):
             HasProperties=[],
         )
 
-        for key, value in asset.properties.items():
+        for key, value in properties.items():
             if isinstance(value, (int, float)):
                 prop = self.ifc.createIfcPropertySingleValue(
                     Name=key,
@@ -451,6 +460,22 @@ class BaseIFCGenerator(ABC):
                 RelatingPropertyDefinition=pset,
             )
             self.metadata["property_sets"] += 1
+
+    def _normalize_properties(self, raw):
+        """
+        Ensure properties are a dict.
+        Accepts dict, JSON string, or returns empty dict otherwise.
+        """
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
 
     def _set_generation_metadata(self):
         """Set metadata and mark generation complete."""

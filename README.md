@@ -289,26 +289,37 @@ brew services start postgresql  # macOS
 sudo systemctl start postgresql  # Linux
 ```
 
-#### 5. Setup Redis (for Celery & Channels)
+#### 5. Setup Redis (for Celery async tasks)
 
+1) Install Redis  
 ```bash
-# Install Redis
-brew install redis  # macOS
-# or
+brew install redis          # macOS
 sudo apt-get install redis-server  # Linux
-
-# Start Redis service
-brew services start redis  # macOS
-# or
-redis-server  # Linux
 ```
 
----
-
-For specific queues (geometry tasks):
-
+2) Start Redis  
 ```bash
-celery -A bimflowsuite worker -Q geometry -c 1 -l info
+brew services start redis   # macOS service
+redis-server                # Linux/foreground
+```
+
+3) Set broker URLs in `.env` (already present in the template)  
+```bash
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```
+
+4) Run Celery worker in a separate terminal  
+```bash
+cd bimflowsuite
+source .venv/bin/activate   # or venv/bin/activate
+celery -A bimflowsuite worker -l info
+# For geometry-only queue: celery -A bimflowsuite worker -Q geometry -c 1 -l info
+```
+
+5) Verify Redis is reachable (optional)  
+```bash
+redis-cli ping   # should return PONG
 ```
 
 ## Running Tests
@@ -354,12 +365,12 @@ See [bimflowsuite-ui/README.md](../bimflowsuite-ui/README.md#build-for-productio
 - `POST /api/token/refresh/` — Refresh expired access token
 
 ### Projects & IFC Generation
-- `GET /api/v1/generate-model/projects/` — List user projects (paginated, filterable)
-- `POST /api/v1/generate-model/projects/` — Create new project
-- `GET /api/v1/generate-model/projects/{id}/` — Get project details (all 30+ fields)
-- `PUT /api/v1/generate-model/projects/{id}/` — Update project
-- `DELETE /api/v1/generate-model/projects/{id}/` — Delete project
-- `POST /api/v1/generate-model/ifcs/create_for_project/` — Generate IFC from project
+- `GET /api/v1/projects/` — List user projects (paginated, filterable)
+- `POST /api/v1/projects/create/` — Create new project
+- `GET /api/v1/projects/{id}/` — Get project details
+- `PATCH /api/v1/projects/{id}/` — Update project
+- `DELETE /api/v1/projects/{id}/` — Delete project
+- `POST /api/v1/sites/{id}/generate-ifc/` — Queue async IFC generation for a site
 - `GET /api/v1/generate-model/ifcs/` — List generated IFCs
 - `GET /api/v1/generate-model/ifcs/{id}/` — Get IFC details & download link
 
@@ -432,27 +443,16 @@ curl -X POST http://localhost:8000/api/v1/generate-model/projects/ \
 ### 3. Generate IFC File
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/generate-model/ifcs/create_for_project/ \
+curl -X POST http://localhost:8000/api/v1/sites/<SITE_UUID>/generate-ifc/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": 1,
-    "asset_type": "building",
-    "specifications": {
-      "floor_count": 20,
-      "floor_height": 3.5,
-      "building_height": 70,
-      "total_area": 50000
-    }
-  }'
+  -H "Content-Type: application/json"
 
 # Response (IFC generation queued in Celery)
 {
-  "id": 42,
-  "project": 1,
-  "asset_type": "building",
-  "status": "generating",
-  "created_at": "2025-01-31T10:30:00Z"
+  "status": "queued",
+  "site_id": "<SITE_UUID>",
+  "task_id": "<CELERY_TASK_ID>",
+  "message": "IFC generation task has been queued. Check the generated_ifcs endpoint for results."
 }
 ```
 
@@ -581,7 +581,7 @@ Every project stores comprehensive BIM information organized into sections:
 ### IFC Generation Workflow
 
 1. **User creates Project** with specifications
-2. **Frontend calls** `POST /api/v1/generate-model/ifcs/create_for_project/`
+2. **Frontend calls** `POST /api/v1/sites/{id}/generate-ifc/`
 3. **Backend queues** Celery task
 4. **Celery worker** loads appropriate generator (building.py, road.py, etc.)
 5. **Generator** uses ifcopenshell to construct IFC entities

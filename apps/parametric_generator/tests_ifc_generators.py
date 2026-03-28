@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.parametric_generator.models import Project, Site, SpatialStructure, Asset
+from apps.parametric_generator.models import Project, Site, SpatialStructure, Element
 from apps.parametric_generator.generators.building_ifc4 import BuildingIFCGenerator
 from apps.parametric_generator.generators.bridge_ifc4 import BridgeIFCGenerator
 from apps.parametric_generator.generators.road_ifc4 import RoadIFCGenerator
@@ -68,7 +68,7 @@ class BaseGeneratorTestCase(TestCase):
         """Helper to create asset"""
         if properties is None:
             properties = {}
-        return Asset.objects.create(
+        return Element.objects.create(
             spatial_structure=spatial_structure,
             site=spatial_structure.site,
             asset_type=asset_type,

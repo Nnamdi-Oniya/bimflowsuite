@@ -31,10 +31,11 @@ PROJECT_TYPE_SCHEMAS = {
             },
             "num_stories": {
                 "type": "integer",
-                "required": True,
-                "min": 1,
+                "required": False,
+                "nullable": True,
+                "min": 0,
                 "max": 300,
-                "description": "Total number of floors/stories (including basement levels)",
+                "description": "Optional floor/story count. Use 0 or null for non-story buildings.",
             },
             "occupancy_type": {
                 "type": "string",
@@ -598,12 +599,40 @@ PROJECT_TYPE_SCHEMAS = {
 }
 
 
+PROJECT_TYPE_SCHEMA_ALIASES = {
+    # Model project types -> schema keys
+    "BUILDING": "IFC_BUILDING",
+    "INFRA_ROAD": "IFC_ROAD",
+    "INFRA_RAILWAY": "IFC_RAILWAY",
+    "INFRA_BRIDGE": "IFC_BRIDGE",
+    "INFRA_TUNNEL": "IFC_TUNNEL",
+    "INFRA_MARINE": "IFC_MARINE_FACILITY",
+    "INDUSTRIAL_FACTORY": "IFC_FACTORY",
+    "INDUSTRIAL_PLANT": "IFC_PROCESS_PLANT",
+    "INFRA_DISTRIBUTION": "IFC_DISTRIBUTION_SYSTEM",
+    "SITE": "IFC_SITE",
+    "OTHER": "OTHER",
+}
+
+
+def normalize_project_type_for_schema(project_type):
+    """
+    Resolve a project type to a key present in PROJECT_TYPE_SCHEMAS.
+
+    Accepts both API/model codes (e.g. BUILDING, INFRA_ROAD) and direct
+    schema codes (e.g. IFC_BUILDING).
+    """
+    if project_type in PROJECT_TYPE_SCHEMAS:
+        return project_type
+    return PROJECT_TYPE_SCHEMA_ALIASES.get(project_type)
+
+
 def validate_type_metadata(project_type, type_metadata):
     """
     Validate type_metadata against the schema for a given project_type.
 
     Args:
-        project_type (str): Project type code (e.g., 'IFC_BUILDING')
+        project_type (str): Project type code (e.g., 'BUILDING' or 'IFC_BUILDING')
         type_metadata (dict): The metadata to validate
 
     Returns:
@@ -611,13 +640,12 @@ def validate_type_metadata(project_type, type_metadata):
         - is_valid (bool): True if valid, False otherwise
         - errors_list (list): List of error messages if invalid
 
-    Raises:
-        ValueError: If project_type is not recognized
     """
-    if project_type not in PROJECT_TYPE_SCHEMAS:
-        raise ValueError(f"Unknown project type: {project_type}")
+    normalized_project_type = normalize_project_type_for_schema(project_type)
+    if not normalized_project_type:
+        return False, [f"Unknown project type: {project_type}"]
 
-    schema = PROJECT_TYPE_SCHEMAS[project_type]
+    schema = PROJECT_TYPE_SCHEMAS[normalized_project_type]
     errors = []
 
     # Check required fields
@@ -629,32 +657,44 @@ def validate_type_metadata(project_type, type_metadata):
         if field_name in type_metadata:
             value = type_metadata[field_name]
             field_type = field_spec.get("type")
+            allow_null = field_spec.get("nullable", False)
+
+            if value is None:
+                if allow_null:
+                    continue
+                errors.append(f"Field '{field_name}' cannot be null")
+                continue
 
             # Type validation
             if field_type == "string" and not isinstance(value, str):
                 errors.append(
                     f"Field '{field_name}' must be a string, got {type(value).__name__}"
                 )
+                continue
 
             elif field_type == "integer" and not isinstance(value, int):
                 errors.append(
                     f"Field '{field_name}' must be an integer, got {type(value).__name__}"
                 )
+                continue
 
             elif field_type == "number" and not isinstance(value, (int, float)):
                 errors.append(
                     f"Field '{field_name}' must be a number, got {type(value).__name__}"
                 )
+                continue
 
             elif field_type == "boolean" and not isinstance(value, bool):
                 errors.append(
                     f"Field '{field_name}' must be a boolean, got {type(value).__name__}"
                 )
+                continue
 
             elif field_type == "array" and not isinstance(value, list):
                 errors.append(
                     f"Field '{field_name}' must be an array, got {type(value).__name__}"
                 )
+                continue
 
             # Enum validation
             if "enum" in field_spec and value not in field_spec["enum"]:
@@ -686,4 +726,7 @@ def get_project_type_schema(project_type):
     Returns:
         dict: Schema definition or None if not found
     """
-    return PROJECT_TYPE_SCHEMAS.get(project_type)
+    normalized_project_type = normalize_project_type_for_schema(project_type)
+    if not normalized_project_type:
+        return None
+    return PROJECT_TYPE_SCHEMAS.get(normalized_project_type)

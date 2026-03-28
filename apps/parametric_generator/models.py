@@ -4,6 +4,21 @@ from django.conf import settings
 from apps.users.models import Organization
 
 
+FACILITY_TYPE_CHOICES = [
+    ("BUILDING", "Building"),
+    ("INFRA_ROAD", "Road"),
+    ("INFRA_RAILWAY", "Railway"),
+    ("INFRA_BRIDGE", "Bridge"),
+    ("INFRA_TUNNEL", "Tunnel"),
+    ("INFRA_MARINE", "Marine Facility"),
+    ("INDUSTRIAL_FACTORY", "Factory"),
+    ("INDUSTRIAL_PLANT", "Process Plant"),
+    ("INFRA_DISTRIBUTION", "Distribution System"),
+    ("SITE", "Site / Land Project"),
+    ("OTHER", "Other / Custom"),
+]
+
+
 class Project(models.Model):
     """
     BIM Project Model - Project-level information
@@ -27,20 +42,6 @@ class Project(models.Model):
     )
 
     # ==================== PROJECT TYPE CHOICES ====================
-    PROJECT_TYPE_CHOICES = [
-        ("BUILDING", "Building"),
-        ("INFRA_ROAD", "Road"),
-        ("INFRA_RAILWAY", "Railway"),
-        ("INFRA_BRIDGE", "Bridge"),
-        ("INFRA_TUNNEL", "Tunnel"),
-        ("INFRA_MARINE", "Marine Facility"),
-        ("INDUSTRIAL_FACTORY", "Factory"),
-        ("INDUSTRIAL_PLANT", "Process Plant"),
-        ("INFRA_DISTRIBUTION", "Distribution System"),
-        ("SITE", "Site / Land Project"),
-        ("OTHER", "Other / Custom"),
-    ]
-
     PROJECT_PHASE_CHOICES = [
         ("concept", "Concept"),
         ("schematic", "Schematic"),
@@ -98,18 +99,17 @@ class Project(models.Model):
         null=True,
         help_text="Detailed project description",
     )
+    project_image = models.ImageField(
+        upload_to="project_images/",
+        blank=True,
+        null=True,
+        help_text="Optional cover image for the project",
+    )
     phase = models.CharField(
         max_length=20,
         choices=PROJECT_PHASE_CHOICES,
         default="concept",
         help_text="Current project design phase",
-    )
-
-    # ==================== PROJECT TYPE ====================
-    project_type = models.CharField(
-        max_length=50,
-        choices=PROJECT_TYPE_CHOICES,
-        help_text="Primary project type (Building, Road, Bridge, etc.)",
     )
 
     # ==================== CLIENT INFORMATION ====================
@@ -191,11 +191,62 @@ class Project(models.Model):
             models.Index(fields=["user", "created_at"]),
             models.Index(fields=["project_number"]),
             models.Index(fields=["phase"]),
-            models.Index(fields=["project_type"]),
         ]
 
     def __str__(self):
         return f"{self.name} ({self.project_number})"
+
+
+class Facility(models.Model):
+    """
+    Facility - logical facility within a site (e.g., building, bridge, tunnel).
+    A site can host multiple facilities; facility type drives IFC generation path.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique facility identifier (UUID)",
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="facilities",
+        help_text="Project this facility belongs to",
+    )
+    site = models.ForeignKey(
+        "Site",
+        on_delete=models.CASCADE,
+        related_name="facilities",
+        help_text="Site that contains this facility",
+    )
+    name = models.CharField(max_length=255, help_text="Facility name")
+    facility_type = models.CharField(
+        max_length=50,
+        choices=FACILITY_TYPE_CHOICES,
+        help_text="Facility type (Building, Road, Bridge, etc.)",
+    )
+    description = models.TextField(blank=True, null=True)
+    facility_image = models.ImageField(
+        upload_to="facility_images/",
+        blank=True,
+        null=True,
+        help_text="Optional image/thumbnail for this facility",
+    )
+    properties = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["project", "facility_type"]),
+            models.Index(fields=["site"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.facility_type})"
 
 
 class Site(models.Model):
@@ -262,17 +313,11 @@ class Site(models.Model):
         help_text="Site name or identifier",
     )
 
-    # ==================== PROJECT TYPE & METADATA ====================
-    project_type = models.CharField(
-        max_length=50,
-        choices=Project.PROJECT_TYPE_CHOICES,
-        help_text="Primary site/project type (Building, Road, Bridge, etc.)",
-    )
-
+    # ==================== METADATA ====================
     type_metadata = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Type-specific site details. Structure varies by project_type.",
+        help_text="Type-specific site details (if any).",
     )
 
     # ==================== LOCATION INFORMATION ====================
@@ -281,6 +326,12 @@ class Site(models.Model):
         blank=True,
         null=True,
         help_text="Site address",
+    )
+    site_image = models.ImageField(
+        upload_to="site_images/",
+        blank=True,
+        null=True,
+        help_text="Optional image/thumbnail for this site",
     )
 
     # ==================== GEOMETRY & COORDINATES ====================
@@ -698,7 +749,7 @@ class SpatialStructure(models.Model):
         return descendants
 
 
-class Asset(models.Model):
+class Element(models.Model):
     """
     Asset - Physical elements/components in the BIM model
 

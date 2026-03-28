@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Site, GeneratedIFC, SpatialStructure, Asset
+from .models import Project, Site, Facility, GeneratedIFC, SpatialStructure, Element
 from .schemas import validate_type_metadata
 
 
@@ -17,6 +17,7 @@ class SiteSerializer(serializers.ModelSerializer):
             "type_metadata",
             # Location
             "address",
+            "site_image",
             # Geometry
             "latitude",
             "longitude",
@@ -50,7 +51,10 @@ class SiteSerializer(serializers.ModelSerializer):
         type_metadata = data.get("type_metadata", {})
 
         if project_type and type_metadata:
-            is_valid, errors = validate_type_metadata(project_type, type_metadata)
+            try:
+                is_valid, errors = validate_type_metadata(project_type, type_metadata)
+            except ValueError as exc:
+                raise serializers.ValidationError({"project_type": str(exc)})
             if not is_valid:
                 raise serializers.ValidationError(
                     {
@@ -72,10 +76,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             # Basic info
             "name",
             "description",
+            "project_image",
             "project_number",
             "phase",
-            # Project Type
-            "project_type",
             # Client
             "client_name",
             "client_type",
@@ -99,6 +102,24 @@ class ProjectSerializer(serializers.ModelSerializer):
         """Associate project with current user"""
         validated_data["user"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class FacilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Facility
+        fields = [
+            "id",
+            "project",
+            "site",
+            "name",
+            "facility_type",
+            "description",
+            "facility_image",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class GeneratedIFCSerializer(serializers.ModelSerializer):
@@ -141,9 +162,6 @@ class GeneratedIFCSerializer(serializers.ModelSerializer):
     def get_download_url(self, obj):
         """Return download URL for IFC file"""
         if obj.ifc_file:
-            request = self.context.get("request")
-            if request is not None:
-                return request.build_absolute_uri(obj.ifc_file.url)
             return obj.ifc_file.url
         return None
 
@@ -158,15 +176,15 @@ class ProjectDetailSerializer(ProjectSerializer):
         fields = ProjectSerializer.Meta.fields + ["generated_ifcs", "sites"]
 
 
-class AssetSimpleSerializer(serializers.ModelSerializer):
-    """Simple asset serializer for nested representation"""
+class ElementSimpleSerializer(serializers.ModelSerializer):
+    """Simple element serializer for nested representation"""
 
     asset_type_display = serializers.CharField(
         source="get_asset_type_display", read_only=True
     )
 
     class Meta:
-        model = Asset
+        model = Element
         fields = [
             "id",
             "asset_type",
@@ -187,7 +205,7 @@ class SpatialStructureSerializer(serializers.ModelSerializer):
         source="get_spatial_type_display", read_only=True
     )
     children = serializers.SerializerMethodField(read_only=True)
-    assets = AssetSimpleSerializer(many=True, read_only=True)
+    assets = ElementSimpleSerializer(many=True, read_only=True)
     parent_name = serializers.CharField(source="parent.name", read_only=True)
 
     class Meta:
@@ -262,15 +280,15 @@ class SiteStructureSerializer(serializers.ModelSerializer):
         """Get summary of assets by type"""
         assets = obj.assets.all()
         summary = {}
-        for asset_type, display_name in Asset.ASSET_TYPE_CHOICES:
+        for asset_type, display_name in Element.ASSET_TYPE_CHOICES:
             count = assets.filter(asset_type=asset_type).count()
             if count > 0:
                 summary[asset_type] = count
         return summary
 
 
-class AssetSerializer(serializers.ModelSerializer):
-    """Full serializer for Asset with relationships"""
+class ElementSerializer(serializers.ModelSerializer):
+    """Full serializer for Element with relationships"""
 
     asset_type_display = serializers.CharField(
         source="get_asset_type_display", read_only=True
@@ -281,7 +299,7 @@ class AssetSerializer(serializers.ModelSerializer):
     site_name = serializers.CharField(source="site.site_name", read_only=True)
 
     class Meta:
-        model = Asset
+        model = Element
         fields = [
             "id",
             "spatial_structure",

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count
-from .models import Project, Site, GeneratedIFC, SpatialStructure, Asset
+from .models import Project, Site, GeneratedIFC, SpatialStructure, Element
 
 
 @admin.register(Project)
@@ -13,7 +13,6 @@ class ProjectAdmin(admin.ModelAdmin):
         "project_number",
         "name_truncated",
         "phase_colored",
-        "project_type",
         "client_name",
         "ifc_count",
         "created_at",
@@ -21,7 +20,6 @@ class ProjectAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         "phase",
-        "project_type",
         "client_type",
         "project_scale",
         "risk_classification",
@@ -215,7 +213,6 @@ class SiteAdmin(admin.ModelAdmin):
             "Project Type & Metadata",
             {
                 "fields": (
-                    "project_type",
                     "type_metadata",
                 )
             },
@@ -485,7 +482,6 @@ class SpatialStructureAdmin(admin.ModelAdmin):
     list_filter = [
         "spatial_type",
         "level",
-        "site__project__project_type",
         "created_at",
     ]
     search_fields = ["name", "description", "site__site_name"]
@@ -553,8 +549,8 @@ class SpatialStructureAdmin(admin.ModelAdmin):
     parent_name.short_description = "Parent Structure"
 
 
-@admin.register(Asset)
-class AssetAdmin(admin.ModelAdmin):
+@admin.register(Element)
+class ElementAdmin(admin.ModelAdmin):
     """Admin interface for BIM assets (physical elements)"""
 
     list_display = [
@@ -567,7 +563,6 @@ class AssetAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         "asset_type",
-        "site__project__project_type",
         "created_at",
     ]
     search_fields = ["name", "description", "spatial_structure__name"]
