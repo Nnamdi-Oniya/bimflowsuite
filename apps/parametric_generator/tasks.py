@@ -11,6 +11,7 @@ from .models import GeneratedIFC, Site, Facility
 from .generators.building import BuildingIFCGenerator
 from .generators.bridge import BridgeIFCGenerator
 from .generators.road import RoadIFCGenerator
+from .generators.railway import RailwayIFCGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +54,15 @@ def generate_ifc_for_site(self, site_id, facility_id=None):
         )
         # Derive asset_type from facility or site/project type
         project_type_map = {
-            "BUILDING": "building",
-            "INFRA_ROAD": "road",
-            "INFRA_BRIDGE": "bridge",
-            "INFRA_TUNNEL": "tunnel",
-            "INFRA_RAILWAY": "railway",
-            "SITE": "site",
+            "IFC_BUILDING": "building",
+            "IFC_ROAD": "road",
+            "IFC_BRIDGE": "bridge",
+            "IFC_TUNNEL": "tunnel",
+            "IFC_RAILWAY": "railway",
+            "IFC_SITE": "site",
         }
-        active_type = facility.facility_type if facility else (site.project_type or "SITE")
+        active_type_raw = facility.facility_type if facility else "IFC_SITE"
+        active_type = _normalize_facility_type(active_type_raw) or "IFC_SITE"
         derived_asset_type = project_type_map.get(active_type, "site")
 
         if generated_ifc:
@@ -86,7 +88,6 @@ def generate_ifc_for_site(self, site_id, facility_id=None):
         # Update shared specs every run
         generated_ifc.specifications.update(
             {
-                "project_type": project.project_type,
                 "facility_type": active_type,
                 "spatial_element_count": site.spatial_structures.count(),
             }
@@ -101,11 +102,11 @@ def generate_ifc_for_site(self, site_id, facility_id=None):
 
         if not generator_class:
             raise ValueError(
-                f"Unsupported generator for project type: {project.project_type}"
+                f"Unsupported generator for facility type: {active_type}"
             )
 
         # Instantiate and generate IFC
-        generator = generator_class(site)
+        generator = generator_class(site, facility=facility)
         ifc_string = generator.generate()
 
         # Validate generated IFC by reopening with ifcopenshell
@@ -212,6 +213,10 @@ def generate_ifc_for_site(self, site_id, facility_id=None):
         raise self.retry(exc=e, countdown=60, max_retries=3)
 
 
+def _normalize_facility_type(ftype):
+    return ftype.upper() if ftype else None
+
+
 def _get_generator_class(project_type):
     """
     Factory method to select appropriate generator class based on project type.
@@ -223,12 +228,10 @@ def _get_generator_class(project_type):
         Generator class or None if not implemented
     """
     generators = {
-        "BUILDING": BuildingIFCGenerator,
-        "INFRA_BRIDGE": BridgeIFCGenerator,
-        "INFRA_ROAD": RoadIFCGenerator,
-        # Additional types can be added as generators are implemented:
-        # "INFRA_RAILWAY": RailwayIFCGenerator,
-        # "INFRA_TUNNEL": TunnelIFCGenerator,
-        # "INDUSTRIAL_FACTORY": FactoryIFCGenerator,
+        "IFC_BUILDING": BuildingIFCGenerator,
+        "IFC_BRIDGE": BridgeIFCGenerator,
+        "IFC_ROAD": RoadIFCGenerator,
+        "IFC_TUNNEL": RoadIFCGenerator,  # placeholder until tunnel generator is wired
+        "IFC_RAILWAY": RailwayIFCGenerator,
     }
     return generators.get(project_type)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Site, Facility, GeneratedIFC, SpatialStructure, Element
+from .models import Project, Site, Facility, Material, GeneratedIFC, SpatialStructure, Element
 from .schemas import validate_type_metadata
 
 
@@ -12,8 +12,6 @@ class SiteSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "site_name",
-            # Type & Metadata
-            "project_type",
             "type_metadata",
             # Location
             "address",
@@ -46,8 +44,8 @@ class SiteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, data):
-        """Validate type_metadata against project_type schema"""
-        project_type = data.get("project_type")
+        """Validate type_metadata (if provided)"""
+        project_type = None  # project type removed; validation skipped unless provided
         type_metadata = data.get("type_metadata", {})
 
         if project_type and type_metadata:
@@ -115,6 +113,22 @@ class FacilitySerializer(serializers.ModelSerializer):
             "facility_type",
             "description",
             "facility_image",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class MaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Material
+        fields = [
+            "id",
+            "facility",
+            "name",
+            "code",
+            "description",
             "properties",
             "created_at",
             "updated_at",
@@ -306,10 +320,14 @@ class ElementSerializer(serializers.ModelSerializer):
             "spatial_structure_name",
             "site",
             "site_name",
+            "facility",
             "asset_type",
             "asset_type_display",
             "name",
             "description",
+            "material",
+            "geometry",
+            "position",
             "properties",
             "created_at",
             "updated_at",

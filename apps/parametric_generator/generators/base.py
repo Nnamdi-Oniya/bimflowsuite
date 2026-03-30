@@ -12,6 +12,7 @@ from datetime import datetime
 from ifcopenshell import file as ifc_file
 from ifcopenshell import guid
 import json
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class BaseIFCGenerator(ABC):
     - Coordinate system setup
     """
 
-    def __init__(self, site):
+    def __init__(self, site, facility=None):
         """
         Initialize generator with a Site instance.
 
@@ -35,8 +36,11 @@ class BaseIFCGenerator(ABC):
             site: Site model instance containing project context
         """
         self.site = site
+        self.facility = facility
         self.project = site.project
         self.ifc = None
+        self.model_context = None
+        self.body_context = None
         self.element_map = {}  # Maps model IDs to IFC elements
         self.metadata = {
             "total_elements": 0,
@@ -120,6 +124,18 @@ class BaseIFCGenerator(ABC):
             Precision=float(self.site.precision),
             WorldCoordinateSystem=self._create_local_placement(),
         )
+        self.model_context = context_3d
+
+        # Body sub-context reused for all products
+        self.body_context = self.ifc.createIfcGeometricRepresentationSubContext(
+            ContextIdentifier="Body",
+            ContextType="Model",
+            ParentContext=context_3d,
+            TargetView="MODEL_VIEW",
+            CoordinateSpaceDimension=3,
+            Precision=float(self.site.precision),
+        )
+
         # Attach context to project
         project_ifc.RepresentationContexts = [context_3d]
 
@@ -270,7 +286,9 @@ class BaseIFCGenerator(ABC):
         """
         Create building/bridge/road elements from Asset model instances.
         """
-        assets = self.site.assets.all().select_related("spatial_structure")
+        assets = self.site.elements.all().select_related("spatial_structure")
+        if self.facility:
+            assets = assets.filter(facility=self.facility)
 
         for asset in assets:
             try:
@@ -365,6 +383,36 @@ class BaseIFCGenerator(ABC):
                 Name=asset.name,
                 Description=asset.description or "",
             )
+        elif asset_type == "alignment":
+            ifc_element = self.ifc.createIfcAlignment(
+                guid.new(),
+                Name=asset.name,
+                Description=asset.description or "",
+            )
+        elif asset_type in ("kerb", "curb"):
+            ifc_element = self.ifc.createIfcKerb(
+                guid.new(),
+                Name=asset.name,
+                Description=asset.description or "",
+            )
+        elif asset_type == "pavement":
+            ifc_element = self.ifc.createIfcPavement(
+                guid.new(),
+                Name=asset.name,
+                Description=asset.description or "",
+            )
+        elif asset_type == "rail":
+            ifc_element = self.ifc.createIfcRail(
+                guid.new(),
+                Name=asset.name,
+                Description=asset.description or "",
+            )
+        elif asset_type == "sleeper":
+            ifc_element = self.ifc.createIfcSleeper(
+                guid.new(),
+                Name=asset.name,
+                Description=asset.description or "",
+            )
         else:
             # Fallback to generic building element proxy
             ifc_element = self.ifc.createIfcBuildingElementProxy(
@@ -380,7 +428,13 @@ class BaseIFCGenerator(ABC):
             parent_ifc = self.element_map.get(f"spatial_{spatial_struct.id}")
 
             if parent_ifc:
-                ifc_element.ObjectPlacement = self._create_local_placement()
+                placement = self._create_local_placement()
+                pos = self._normalize_properties(asset.position or {})
+                if pos and all(k in pos for k in ("x", "y", "z")):
+                    placement.RelativePlacement.Location = self.ifc.createIfcCartesianPoint(
+                        [float(pos["x"]), float(pos["y"]), float(pos["z"])]
+                    )
+                ifc_element.ObjectPlacement = placement
                 self.ifc.createIfcRelContainedInSpatialStructure(
                     guid.new(),
                     RelatedElements=[ifc_element],
@@ -389,6 +443,8 @@ class BaseIFCGenerator(ABC):
 
             # Add properties
             self._add_asset_properties(ifc_element, asset)
+            # Apply geometry as solid/shape if provided
+            self._apply_geometry(ifc_element, asset)
 
         return ifc_element
 
@@ -429,8 +485,27 @@ class BaseIFCGenerator(ABC):
     def _add_asset_properties(self, ifc_element, asset):
         """Add PropertySets and material to asset element."""
         properties = self._normalize_properties(asset.properties)
+
+        if asset.material:
+            ifc_mat = self.ifc.createIfcMaterial(asset.material.name)
+            self.ifc.createIfcRelAssociatesMaterial(
+                guid.new(),
+                RelatedObjects=[ifc_element],
+                RelatingMaterial=ifc_mat,
+            )
+
         if not properties:
             return
+
+        # Attach raw geometry as a label property if present on asset
+        geom = self._normalize_properties(asset.geometry or {})
+        if geom:
+            geom_prop = self.ifc.createIfcPropertySingleValue(
+                Name="geometry",
+                NominalValue=self.ifc.createIfcLabel(json.dumps(geom)),
+            )
+        else:
+            geom_prop = None
 
         pset = self.ifc.createIfcPropertySet(
             guid.new(),
@@ -453,6 +528,9 @@ class BaseIFCGenerator(ABC):
                 )
             pset.HasProperties = list(pset.HasProperties or []) + [prop]
 
+        if geom_prop:
+            pset.HasProperties = list(pset.HasProperties or []) + [geom_prop]
+
         if pset.HasProperties:
             self.ifc.createIfcRelDefinesByProperties(
                 guid.new(),
@@ -460,6 +538,192 @@ class BaseIFCGenerator(ABC):
                 RelatingPropertyDefinition=pset,
             )
             self.metadata["property_sets"] += 1
+
+    def _apply_geometry(self, ifc_element, asset):
+        """Create simple shape representations from stored geometry."""
+        geom = self._normalize_properties(asset.geometry or {})
+        if not geom or "type" not in geom:
+            return
+
+        gtype = geom.get("type")
+        rep_items = []
+
+        if gtype == "extruded_wall":
+            start = geom.get("start", [0, 0, 0])
+            end = geom.get("end", [0, 0, 0])
+            height = float(geom.get("height", 3.0))
+            thickness = float(geom.get("thickness", 0.2))
+            dx = end[0] - start[0]
+            dy = end[1] - start[1]
+            length = math.hypot(dx, dy) or 0.001
+            dir_x = dx / length
+            dir_y = dy / length
+            # rectangle profile thickness x length, extrude height
+            rect = self.ifc.createIfcRectangleProfileDef(
+                ProfileType="AREA",
+                ProfileName=None,
+                XDim=thickness,
+                YDim=length,
+                Position=self.ifc.createIfcAxis2Placement2D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0]),
+                    RefDirection=self.ifc.createIfcDirection([1.0, 0.0]),
+                ),
+            )
+            solid = self.ifc.createIfcExtrudedAreaSolid(
+                SweptArea=rect,
+                Position=self.ifc.createIfcAxis2Placement3D(
+                    Location=self.ifc.createIfcCartesianPoint(list(start)),
+                    RefDirection=self.ifc.createIfcDirection([dir_x, dir_y, 0.0]),
+                    Axis=self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
+                ),
+                ExtrudedDirection=self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
+                Depth=height,
+            )
+            rep_items.append(solid)
+
+        elif gtype == "rectangular_slab":
+            length = float(geom.get("length", 1.0))
+            width = float(geom.get("width", 1.0))
+            thickness = float(geom.get("thickness", 0.2))
+            rect = self.ifc.createIfcRectangleProfileDef(
+                ProfileType="AREA",
+                ProfileName=None,
+                XDim=width,
+                YDim=length,
+                Position=self.ifc.createIfcAxis2Placement2D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0]),
+                    RefDirection=self.ifc.createIfcDirection([1.0, 0.0]),
+                ),
+            )
+            solid = self.ifc.createIfcExtrudedAreaSolid(
+                SweptArea=rect,
+                Position=self.ifc.createIfcAxis2Placement3D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
+                ),
+                ExtrudedDirection=self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
+                Depth=thickness,
+            )
+            rep_items.append(solid)
+
+        elif gtype == "alignment" or asset.asset_type == "alignment":
+            pts = geom.get("points", [])
+            if len(pts) >= 2:
+                poly = self.ifc.createIfcPolyline(
+                    [self.ifc.createIfcCartesianPoint(list(p)) for p in pts]
+                )
+                rep_items.append(poly)
+        elif gtype == "circular_column":
+            diameter = float(geom.get("diameter", 0.5))
+            height = float(geom.get("height", 3.0))
+            circle = self.ifc.createIfcCircleProfileDef(
+                ProfileType="AREA",
+                ProfileName=None,
+                Radius=diameter / 2.0,
+                Position=self.ifc.createIfcAxis2Placement2D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0])
+                ),
+            )
+            solid = self.ifc.createIfcExtrudedAreaSolid(
+                SweptArea=circle,
+                Position=self.ifc.createIfcAxis2Placement3D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
+                ),
+                ExtrudedDirection=self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
+                Depth=height,
+            )
+            rep_items.append(solid)
+        elif gtype == "i_beam":
+            length = float(geom.get("length", 1.0))
+            height = float(geom.get("height", 0.3))
+            flange_width = float(geom.get("flange_width", 0.15))
+            web_thickness = float(geom.get("web_thickness", flange_width / 5))
+            flange_thickness = float(geom.get("flange_thickness", height / 10))
+            # Approximate I-profile using IfcIShapeProfileDef
+            iprof = self.ifc.createIfcIShapeProfileDef(
+                ProfileType="AREA",
+                ProfileName=None,
+                OverallWidth=flange_width,
+                OverallDepth=height,
+                WebThickness=web_thickness,
+                FlangeThickness=flange_thickness,
+                FilletRadius=None,
+            )
+            solid = self.ifc.createIfcExtrudedAreaSolid(
+                SweptArea=iprof,
+                Position=self.ifc.createIfcAxis2Placement3D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
+                ),
+                ExtrudedDirection=self.ifc.createIfcDirection([1.0, 0.0, 0.0]),
+                Depth=length,
+            )
+            rep_items.append(solid)
+        elif gtype in ("railway_alignment", "rail_alignment"):
+            pts = geom.get("points", [])
+            if len(pts) >= 2:
+                poly = self.ifc.createIfcPolyline(
+                    [self.ifc.createIfcCartesianPoint(list(p)) for p in pts]
+                )
+                rep_items.append(poly)
+        elif gtype in ("continuous_rail",):
+            length = float(geom.get("length", 1.0))
+            solid = self.ifc.createIfcExtrudedAreaSolid(
+                SweptArea=self.ifc.createIfcRectangleProfileDef(
+                    ProfileType="AREA",
+                    ProfileName=None,
+                    XDim=float(geom.get("profile_width", 0.07)),
+                    YDim=float(geom.get("profile_height", 0.16)),
+                    Position=self.ifc.createIfcAxis2Placement2D(
+                        Location=self.ifc.createIfcCartesianPoint([0.0, 0.0])
+                    ),
+                ),
+                Position=self.ifc.createIfcAxis2Placement3D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
+                ),
+                ExtrudedDirection=self.ifc.createIfcDirection([1.0, 0.0, 0.0]),
+                Depth=length,
+            )
+            rep_items.append(solid)
+        elif gtype in ("sleeper_array",):
+            count = int(geom.get("count", 1))
+            spacing = float(geom.get("spacing", 0.6))
+            length = float(geom.get("length", 2.5))
+            width = float(geom.get("width", 0.25))
+            thickness = float(geom.get("thickness", 0.2))
+            sleeper_profile = self.ifc.createIfcRectangleProfileDef(
+                ProfileType="AREA",
+                ProfileName=None,
+                XDim=width,
+                YDim=length,
+                Position=self.ifc.createIfcAxis2Placement2D(
+                    Location=self.ifc.createIfcCartesianPoint([0.0, 0.0])
+                ),
+            )
+            for i in range(max(count, 1)):
+                solid = self.ifc.createIfcExtrudedAreaSolid(
+                    SweptArea=sleeper_profile,
+                    Position=self.ifc.createIfcAxis2Placement3D(
+                        Location=self.ifc.createIfcCartesianPoint(
+                            [float(i) * spacing, 0.0, 0.0]
+                        )
+                    ),
+                    ExtrudedDirection=self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
+                    Depth=thickness,
+                )
+                rep_items.append(solid)
+
+        if rep_items:
+            shape = self.ifc.createIfcShapeRepresentation(
+                ContextOfItems=self.body_context or self.model_context,
+                RepresentationIdentifier="Body",
+                RepresentationType="SweptSolid" if any(hasattr(i, "Depth") for i in rep_items) else "Curve3D",
+                Items=rep_items,
+            )
+            if ifc_element.Representation:
+                ifc_element.Representation.Representations.append(shape)
+            else:
+                ifc_element.Representation = self.ifc.createIfcProductDefinitionShape(
+                    Representations=[shape]
+                )
 
     def _normalize_properties(self, raw):
         """

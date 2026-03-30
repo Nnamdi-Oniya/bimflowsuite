@@ -6,13 +6,22 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 import logging
 
-from .models import Project, GeneratedIFC, Site, Facility, SpatialStructure, Element
+from .models import (
+    Project,
+    GeneratedIFC,
+    Site,
+    Facility,
+    Material,
+    SpatialStructure,
+    Element,
+)
 from .serializers import (
     ProjectSerializer,
     ProjectDetailSerializer,
     GeneratedIFCSerializer,
     SiteSerializer,
     FacilitySerializer,
+    MaterialSerializer,
     SpatialStructureSerializer,
     ElementSerializer,
     SiteStructureSerializer,
@@ -59,7 +68,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
     serializer_class = ProjectSerializer
-    filterset_fields = ["phase", "project_type", "organization", "approval_status"]
+    filterset_fields = ["phase", "organization", "approval_status"]
     search_fields = ["name", "project_number", "description"]
     ordering_fields = ["created_at", "updated_at", "name"]
     ordering = ["-created_at"]
@@ -198,7 +207,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
     serializer_class = SiteSerializer
-    filterset_fields = ["project", "project_type", "coordinate_reference_system"]
+    filterset_fields = ["project", "coordinate_reference_system"]
     search_fields = ["site_name", "address"]
     ordering_fields = ["created_at", "updated_at", "site_name"]
     ordering = ["-created_at"]
@@ -343,61 +352,7 @@ class SiteViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[permissions.IsAuthenticated],
-    )
-    def generate_ifc(self, request, pk=None):
-        """
-        POST: Queue IFC4X3 generation for this site
-
-        Returns:
-            {
-                "status": "queued",
-                "generated_ifc_id": "uuid",
-                "task_id": "celery-task-id"
-            }
-        """
-        site = self.get_object()
-
-        # Verify user can access this site
-        self.check_object_permissions(request, site)
-
-        # Verify user has edit permission
-        member = OrganizationMember.objects.get(
-            organization=site.project.organization, user=request.user
-        )
-        if not member.can_edit_projects:
-            raise PermissionDenied(
-                "You don't have permission to generate IFC for sites in this organization"
-            )
-
-        try:
-            # Queue IFC generation task
-            facility_id = request.data.get("facility")
-            task = generate_ifc_for_site.delay(str(site.id), facility_id)
-
-            logger.info(
-                f"IFC generation task queued for site {site.id}: task_id={task.id}"
-            )
-
-            return Response(
-                {
-                    "status": "queued",
-                    "site_id": str(site.id),
-                    "task_id": task.id,
-                    "message": "IFC generation task has been queued. Check the generated_ifcs endpoint for results.",
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to queue IFC generation for site {site.id}: {str(e)}")
-            return Response(
-                {"error": f"Failed to queue IFC generation: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+    # legacy site structure action kept for admin use only (no public route)
 
     def _create_spatial_structure(self, site, data, parent=None):
         """Recursively create spatial structure with children"""
@@ -607,7 +562,9 @@ class ElementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Verify user can edit the site and set site context"""
-        site = serializer.validated_data["spatial_structure"].site
+        struct = serializer.validated_data["spatial_structure"]
+        site = struct.site
+        facility = getattr(struct, "facility", None) or getattr(site, "facilities", None)
         member = OrganizationMember.objects.get(
             organization=site.project.organization, user=self.request.user
         )
@@ -615,7 +572,7 @@ class ElementViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("You don't have permission to edit this site")
 
         serializer.context["site"] = site
-        serializer.save(site=site)
+        serializer.save(site=site, facility=facility)
 
     def perform_update(self, serializer):
         """Verify user can edit the site"""
@@ -685,3 +642,181 @@ class FacilityViewSet(viewsets.ModelViewSet):
         if not member.can_delete_projects:
             raise PermissionDenied("You don't have permission to delete facilities")
         instance.delete()
+
+    @action(detail=True, methods=["get"], url_path="structure/details")
+    def structure_details(self, request, pk=None):
+        facility = self.get_object()
+        site = facility.site
+        spatial_structures = site.spatial_structures.filter(parent__isnull=True).order_by(
+            "order_in_parent"
+        )
+        elements = site.elements.all()
+        if facility:
+            elements = elements.filter(facility=facility)
+
+        return Response(
+            {
+                "facility": str(facility.id),
+                "site": str(site.id),
+                "spatial_structures": SpatialStructureSerializer(
+                    spatial_structures, many=True, context={"request": request}
+                ).data,
+                "elements": ElementSerializer(
+                    elements, many=True, context={"request": request}
+                ).data,
+                "materials": MaterialSerializer(
+                    facility.materials.all(), many=True, context={"request": request}
+                ).data,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="structure/create")
+    def structure_create(self, request, pk=None):
+        """
+        Create spatial structures and elements for this facility/site in one payload.
+        Payload shape:
+        {
+          "materials": [ {id, name, ...} ],
+          "spatial_structures": [ {spatial_type, name, properties?, order_in_parent?, children: [...] , client_id?} ],
+          "elements": [ {asset_type, spatial_structure (uuid) or spatial_structure_client_id, name?, description?, properties?} ]
+        }
+        """
+        facility = self.get_object()
+        site = facility.site
+
+        member = OrganizationMember.objects.get(
+            organization=site.project.organization, user=request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied("You don't have permission to edit this site")
+
+        payload = request.data if isinstance(request.data, dict) else {}
+        spatial_data = payload.get("spatial_structures", [])
+        elements_data = payload.get("elements", [])
+        materials_data = payload.get("materials", [])
+
+        created_structures = {}
+        created_elements = []
+        created_materials = []
+
+        def create_node(node, parent=None):
+            if not isinstance(node, dict):
+                raise ValidationError({"spatial_structures": "Each node must be an object"})
+            spatial_type = node.get("spatial_type")
+            name = node.get("name")
+            if not spatial_type:
+                raise ValidationError({"spatial_type": "spatial_type is required"})
+            if not name:
+                raise ValidationError({"name": "name is required"})
+            client_id = node.get("client_id") or node.get("id")
+            struct = SpatialStructure.objects.create(
+                site=site,
+                parent=parent,
+                spatial_type=spatial_type,
+                name=name,
+                description=node.get("description", ""),
+                order_in_parent=node.get("order_in_parent", 0),
+                properties=node.get("properties", {}),
+                level=(parent.level + 1) if parent else 0,
+            )
+            if client_id:
+                created_structures[client_id] = struct
+            for child in node.get("children", []) or []:
+                create_node(child, struct)
+
+        with transaction.atomic():
+            for mat in materials_data:
+                material = Material.objects.create(
+                    facility=facility,
+                    name=mat.get("name", ""),
+                    code=mat.get("code"),
+                    description=mat.get("description", ""),
+                    properties=mat.get("properties", {}),
+                )
+                created_materials.append(material.id)
+
+            for root in spatial_data:
+                create_node(root, parent=None)
+
+            for el in elements_data:
+                spatial_ref = el.get("spatial_structure") or el.get("spatial_structure_id")
+                if not spatial_ref and el.get("spatial_structure_client_id"):
+                    spatial_ref = created_structures.get(el["spatial_structure_client_id"])
+                struct_obj = None
+                if isinstance(spatial_ref, SpatialStructure):
+                    struct_obj = spatial_ref
+                elif spatial_ref:
+                    struct_obj = get_object_or_404(
+                        SpatialStructure, id=spatial_ref, site=site
+                    )
+                else:
+                    raise ValidationError(
+                        {"spatial_structure": "spatial_structure is required for element"}
+                    )
+
+                material_obj = None
+                if el.get("material"):
+                    material_obj = Material.objects.filter(
+                        id=el.get("material"), facility=facility
+                    ).first()
+
+                elem = Element.objects.create(
+                    site=site,
+                    spatial_structure=struct_obj,
+                    facility=facility,
+                    asset_type=el.get("asset_type"),
+                    name=el.get("name", ""),
+                    description=el.get("description", ""),
+                    properties=el.get("properties", {}),
+                    geometry=el.get("geometry", {}),
+                    position=el.get("position", {}),
+                    material=material_obj,
+                )
+                created_elements.append(elem.id)
+
+        return Response(
+            {
+                "facility": str(facility.id),
+                "site": str(site.id),
+                "created_spatial_structures": [str(s.id) for s in created_structures.values()],
+                "created_elements": [str(eid) for eid in created_elements],
+                "created_materials": [str(mid) for mid in created_materials],
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="generate-ifc")
+    def generate_ifc(self, request, pk=None):
+        """Queue IFC generation for this facility's site and facility context."""
+        facility = self.get_object()
+        site = facility.site
+
+        # permission: edit projects
+        member = OrganizationMember.objects.get(
+            organization=facility.project.organization, user=request.user
+        )
+        if not member.can_edit_projects:
+            raise PermissionDenied(
+                "You don't have permission to generate IFC in this organization"
+            )
+
+        try:
+            task = generate_ifc_for_site.delay(str(site.id), str(facility.id))
+            return Response(
+                {
+                    "status": "queued",
+                    "facility_id": str(facility.id),
+                    "site_id": str(site.id),
+                    "task_id": task.id,
+                    "message": "IFC generation task has been queued. Check generated_ifcs for results.",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to queue IFC generation for facility {facility.id}: {e}"
+            )
+            return Response(
+                {"error": f"Failed to queue IFC generation: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

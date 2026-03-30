@@ -59,91 +59,73 @@ urlpatterns = [
         ),
         name="site-detail",
     ),
-    # Site structure endpoint (spatial elements + assets hierarchy)
-    path(
-        "sites/<uuid:pk>/structure/",
-        SiteViewSet.as_view(
-            {
-                "get": "structure",
-                "patch": "structure",
-            }
-        ),
-        name="site-structure",
-    ),
-    path(
-        "sites/<uuid:pk>/generate-ifc/",
-        SiteViewSet.as_view({"post": "generate_ifc"}),
-        name="site-generate-ifc",
-    ),
     # Generate/IFC endpoints
     path("generate-model/", include(generate_router.urls)),
-    # Structure/Hierarchy endpoints
+    # Structure/Hierarchy endpoints (flattened)
     path(
-        "project-stucture/spatial-structures/",
+        "spatial-structures/",
         SpatialStructureViewSet.as_view({"get": "list"}),
         name="spatial-structure-list",
     ),
     path(
-        "project-stucture/spatial-structures/create/",
+        "spatial-structures/create/",
         SpatialStructureViewSet.as_view({"post": "create"}),
         name="spatial-structure-create",
     ),
     path(
-        "project-stucture/spatial-structures/<uuid:pk>/",
+        "spatial-structures/<uuid:pk>/",
         SpatialStructureViewSet.as_view(
             {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
         ),
         name="spatial-structure-detail",
     ),
     path(
-        "project-stucture/facilities/",
+        "facilities/",
         FacilityViewSet.as_view({"get": "list"}),
         name="facility-list",
     ),
     path(
-        "project-stucture/facilities/create/",
+        "facilities/create/",
         FacilityViewSet.as_view({"post": "create"}),
         name="facility-create",
     ),
     path(
-        "project-stucture/facilities/<uuid:pk>/",
+        "facilities/<uuid:pk>/",
         FacilityViewSet.as_view(
             {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
         ),
         name="facility-detail",
     ),
     path(
-        "project-stucture/elements/",
+        "facilities/<uuid:pk>/structure/details/",
+        FacilityViewSet.as_view({"get": "structure_details"}),
+        name="facility-structure-details",
+    ),
+    path(
+        "facilities/<uuid:pk>/structure/create/",
+        FacilityViewSet.as_view({"post": "structure_create"}),
+        name="facility-structure-create",
+    ),
+    path(
+        "facilities/<uuid:pk>/generate-ifc/",
+        FacilityViewSet.as_view({"post": "generate_ifc"}),
+        name="facility-generate-ifc",
+    ),
+    path(
+        "elements/",
         ElementViewSet.as_view({"get": "list"}),
         name="element-list",
     ),
     path(
-        "project-stucture/elements/create/",
+        "elements/create/",
         ElementViewSet.as_view({"post": "create"}),
         name="element-create",
     ),
     path(
-        "project-stucture/elements/<uuid:pk>/",
+        "elements/<uuid:pk>/",
         ElementViewSet.as_view(
             {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
         ),
         name="element-detail",
-    ),
-    path(
-        "project-stucture/facilities/",
-        FacilityViewSet.as_view({"get": "list"}),
-        name="facility-list",
-    ),
-    path(
-        "project-stucture/facilities/create/",
-        FacilityViewSet.as_view({"post": "create"}),
-        name="facility-create",
-    ),
-    path(
-        "project-stucture/facilities/<uuid:pk>/",
-        FacilityViewSet.as_view(
-            {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
-        ),
-        name="facility-detail",
     ),
 ]

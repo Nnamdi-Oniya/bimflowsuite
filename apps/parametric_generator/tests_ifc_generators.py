@@ -1,7 +1,7 @@
 """
 Tests for IFC4X3 Generators
 
-Verifies that generators correctly convert SpatialStructure and Asset models
+Verifies that generators correctly convert SpatialStructure and Element models
 into valid IFC4X3 files with proper entity hierarchies and property sets.
 """
 

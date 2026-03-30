@@ -2,7 +2,15 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count
-from .models import Project, Site, GeneratedIFC, SpatialStructure, Element
+from .models import (
+    Project,
+    Site,
+    Facility,
+    Material,
+    GeneratedIFC,
+    SpatialStructure,
+    Element,
+)
 
 
 @admin.register(Project)
@@ -466,6 +474,85 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(Facility)
+class FacilityAdmin(admin.ModelAdmin):
+    """Admin for facilities (building, road, bridge, railway, etc.)."""
+
+    list_display = [
+        "name",
+        "facility_type_display",
+        "project_link",
+        "site_link",
+        "created_at",
+    ]
+    list_filter = ["facility_type", "created_at"]
+    search_fields = ["name", "description", "project__name", "site__site_name"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic",
+            {"fields": ("id", "project", "site", "name", "facility_type", "description", "facility_image")},
+        ),
+        (
+            "Properties",
+            {"fields": ("properties",), "classes": ("collapse",)},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def facility_type_display(self, obj):
+        return obj.get_facility_type_display()
+
+    facility_type_display.short_description = "Type"
+
+    def project_link(self, obj):
+        url = reverse("admin:parametric_generator_project_change", args=[obj.project.id])
+        return format_html('<a href="{}">{}</a>', url, obj.project.name)
+
+    project_link.short_description = "Project"
+
+    def site_link(self, obj):
+        url = reverse("admin:parametric_generator_site_change", args=[obj.site.id])
+        return format_html('<a href="{}">{}</a>', url, obj.site.site_name)
+
+    site_link.short_description = "Site"
+
+
+@admin.register(Material)
+class MaterialAdmin(admin.ModelAdmin):
+    """Admin for materials scoped to a facility."""
+
+    list_display = ["name", "code", "facility_link", "created_at"]
+    list_filter = ["facility", "created_at"]
+    search_fields = ["name", "code", "facility__name"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic",
+            {"fields": ("id", "facility", "name", "code", "description")},
+        ),
+        (
+            "Properties",
+            {"fields": ("properties",), "classes": ("collapse",)},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def facility_link(self, obj):
+        url = reverse("admin:parametric_generator_facility_change", args=[obj.facility.id])
+        return format_html('<a href="{}">{}</a>', url, obj.facility.name)
+
+    facility_link.short_description = "Facility"
+
+
 @admin.register(SpatialStructure)
 class SpatialStructureAdmin(admin.ModelAdmin):
     """Admin interface for spatial structures (hierarchical organization)"""
@@ -557,12 +644,16 @@ class ElementAdmin(admin.ModelAdmin):
         "id",
         "name",
         "asset_type_display",
+        "facility_link",
+        "material_name",
         "structure_link",
         "site_link",
         "created_at",
     ]
     list_filter = [
         "asset_type",
+        "facility",
+        "material",
         "created_at",
     ]
     search_fields = ["name", "description", "spatial_structure__name"]
@@ -585,7 +676,18 @@ class ElementAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "site",
+                    "facility",
                     "spatial_structure",
+                )
+            },
+        ),
+        (
+            "Materials & Geometry",
+            {
+                "fields": (
+                    "material",
+                    "geometry",
+                    "position",
                 )
             },
         ),
@@ -630,3 +732,16 @@ class ElementAdmin(admin.ModelAdmin):
         return format_html('<a href="{}">{}</a>', url, obj.site.site_name)
 
     site_link.short_description = "Site"
+
+    def facility_link(self, obj):
+        if not obj.facility:
+            return "—"
+        url = reverse("admin:parametric_generator_facility_change", args=[obj.facility.id])
+        return format_html('<a href="{}">{}</a>', url, obj.facility.name)
+
+    facility_link.short_description = "Facility"
+
+    def material_name(self, obj):
+        return obj.material.name if obj.material else "—"
+
+    material_name.short_description = "Material"

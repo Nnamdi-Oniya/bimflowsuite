@@ -5,17 +5,17 @@ from apps.users.models import Organization
 
 
 FACILITY_TYPE_CHOICES = [
-    ("BUILDING", "Building"),
-    ("INFRA_ROAD", "Road"),
-    ("INFRA_RAILWAY", "Railway"),
-    ("INFRA_BRIDGE", "Bridge"),
-    ("INFRA_TUNNEL", "Tunnel"),
-    ("INFRA_MARINE", "Marine Facility"),
-    ("INDUSTRIAL_FACTORY", "Factory"),
-    ("INDUSTRIAL_PLANT", "Process Plant"),
-    ("INFRA_DISTRIBUTION", "Distribution System"),
-    ("SITE", "Site / Land Project"),
-    ("OTHER", "Other / Custom"),
+    ("IFC_BUILDING", "IFC Building"),
+    ("IFC_ROAD", "IFC Road"),
+    ("IFC_RAILWAY", "IFC Railway"),
+    ("IFC_BRIDGE", "IFC Bridge"),
+    ("IFC_TUNNEL", "IFC Tunnel"),
+    ("IFC_MARINE", "IFC Marine Facility"),
+    ("IFC_FACTORY", "IFC Factory"),
+    ("IFC_PROCESS_PLANT", "IFC Process Plant"),
+    ("IFC_DISTRIBUTION_SYSTEM", "IFC Distribution System"),
+    ("IFC_SITE", "IFC Site"),
+    ("IFC_OTHER", "IFC Other"),
 ]
 
 
@@ -247,6 +247,29 @@ class Facility(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.facility_type})"
+
+
+class Material(models.Model):
+    """Material catalog per facility."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    facility = models.ForeignKey(
+        Facility,
+        on_delete=models.CASCADE,
+        related_name="materials",
+    )
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    properties = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 
 class Site(models.Model):
@@ -805,6 +828,10 @@ class Element(models.Model):
         ("light", "Street Light"),
         ("manhole", "Manhole"),
         ("storm_drain", "Storm Drain"),
+        ("alignment", "Alignment"),
+        ("kerb", "Kerb"),
+        ("rail", "Rail"),
+        ("sleeper", "Sleeper"),
         # Generic
         ("other", "Other"),
     ]
@@ -813,13 +840,13 @@ class Element(models.Model):
     spatial_structure = models.ForeignKey(
         SpatialStructure,
         on_delete=models.CASCADE,
-        related_name="assets",
-        help_text="Spatial structure this asset belongs to",
+        related_name="elements",
+        help_text="Spatial structure this element belongs to",
     )
     site = models.ForeignKey(
         Site,
         on_delete=models.CASCADE,
-        related_name="assets",
+        related_name="elements",
         help_text="Site for quick filtering and context",
     )
 
@@ -840,16 +867,28 @@ class Element(models.Model):
     )
 
     # ==================== PROPERTIES (Type-specific) ====================
+    material = models.ForeignKey(
+        "Material",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="elements",
+    )
+    geometry = models.JSONField(default=dict, blank=True)
+    position = models.JSONField(default=dict, blank=True)
     properties = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Type-specific properties (material, dimensions, specifications)",
+        help_text="Type-specific properties (dimensions, specs)",
     )
-    # Examples:
-    # Wall: {"material": "concrete", "thickness": 0.3, "finish": "painted"}
-    # Beam: {"shape": "I-beam", "length": 10, "material": "steel", "section_id": "IPE300"}
-    # Pipe: {"diameter": 0.1, "material": "copper", "fluid": "water"}
-    # Slab: {"thickness": 0.25, "material": "reinforced_concrete", "coverage": 0.04}
+    facility = models.ForeignKey(
+        Facility,
+        on_delete=models.CASCADE,
+        related_name="elements",
+        null=True,
+        blank=True,
+        help_text="Facility this element belongs to",
+    )
 
     # ==================== METADATA ====================
     created_at = models.DateTimeField(auto_now_add=True)
