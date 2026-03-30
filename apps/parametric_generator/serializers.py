@@ -136,6 +136,22 @@ class MaterialSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
+class FacilityStructureCreateSerializer(serializers.Serializer):
+    """Serializer used for facility structure/create swagger input."""
+
+    materials = MaterialSerializer(many=True, required=False, help_text="List of materials to create for this facility.")
+    spatial_structures = serializers.ListField(
+        child=serializers.DictField(),
+        required=True,
+        help_text="Tree of spatial structures; each dict includes spatial_type, name, optional properties, children, and client_id.",
+    )
+    elements = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        help_text="Elements linked to spatial structures; each dict includes asset_type, name, spatial_structure or spatial_structure_client_id, optional geometry/position/material/properties.",
+    )
+
+
 class GeneratedIFCSerializer(serializers.ModelSerializer):
     """Serializer for generated IFC files"""
 

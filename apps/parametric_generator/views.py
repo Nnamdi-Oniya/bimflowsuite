@@ -25,6 +25,7 @@ from .serializers import (
     SpatialStructureSerializer,
     ElementSerializer,
     SiteStructureSerializer,
+    FacilityStructureCreateSerializer,
 )
 from .tasks import generate_ifc_for_site
 from apps.users.models import OrganizationMember
@@ -670,7 +671,12 @@ class FacilityViewSet(viewsets.ModelViewSet):
             }
         )
 
-    @action(detail=True, methods=["post"], url_path="structure/create")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="structure/create",
+        serializer_class=FacilityStructureCreateSerializer,
+    )
     def structure_create(self, request, pk=None):
         """
         Create spatial structures and elements for this facility/site in one payload.
