@@ -136,10 +136,20 @@ class MaterialSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
+class MaterialCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Material
+        fields = ["name", "code", "description", "properties"]
+
+
 class FacilityStructureCreateSerializer(serializers.Serializer):
     """Serializer used for facility structure/create swagger input."""
 
-    materials = MaterialSerializer(many=True, required=False, help_text="List of materials to create for this facility.")
+    materials = MaterialCreateSerializer(
+        many=True,
+        required=False,
+        help_text="List of materials to create for this facility (facility is implied by path).",
+    )
     spatial_structures = serializers.ListField(
         child=serializers.DictField(),
         required=True,
