@@ -5,6 +5,8 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 import logging
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 
 from .models import (
     Project,
@@ -604,9 +606,17 @@ class FacilityViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = FacilitySerializer
+    serializer_action_classes = {
+        "structure_create": FacilityStructureCreateSerializer,
+    }
     filterset_fields = ["project", "site", "facility_type"]
     search_fields = ["name", "description"]
     ordering = ["name"]
+
+    def get_serializer_class(self):
+        if hasattr(self, "serializer_action_classes"):
+            return self.serializer_action_classes.get(self.action, self.serializer_class)
+        return super().get_serializer_class()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -671,6 +681,10 @@ class FacilityViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @extend_schema(
+        request=FacilityStructureCreateSerializer,
+        responses={201: OpenApiTypes.OBJECT},
+    )
     @action(
         detail=True,
         methods=["post"],
