@@ -76,5 +76,4 @@ urlpatterns = [
     ),
     path("", include("apps.parametric_generator.urls")),
     path("compliance/", include("apps.compliance_engine.urls")),
-    path("analytics/", include("apps.analytics.urls")),
 ]

@@ -36,6 +36,7 @@ urlpatterns = [
     path("admin/bimflow/", admin.site.urls),
     # API Routes (v1)
     path("api/v1/", include("apps.users.urls")),
+    path("api/analysis/", include("apps.analytics.urls")),
     # REST Framework built-in (for browsable API)
     path("api-auth/", include("rest_framework.urls")),
     # JWT Authentication endpoints
