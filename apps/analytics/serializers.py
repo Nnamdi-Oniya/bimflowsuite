@@ -223,15 +223,7 @@ class AnalysisSessionCreateSerializer(serializers.ModelSerializer):
             ifc_source = IFCAnalysisFile.objects.get(id=source_id)
         except IFCAnalysisFile.DoesNotExist:
             raise serializers.ValidationError("IFC analysis file not found.")
-        if ifc_source.owner_id != self.context["request"].user.id:
-            raise serializers.ValidationError("You do not have access to this file.")
-        attrs["ifc_source"] = ifc_source
-        return attrs
 
-    def validate(self, attrs):
-        ifc_source = attrs.get("ifc_source") or getattr(
-            self.instance, "ifc_source", None
-        )
         request = self.context.get("request")
         if request and ifc_source and ifc_source.owner_id != request.user.id:
             raise serializers.ValidationError(
@@ -256,6 +248,7 @@ class AnalysisSessionCreateSerializer(serializers.ModelSerializer):
             )
 
         attrs["analysis_types"] = normalized
+        attrs["ifc_source"] = ifc_source
 
         if ifc_source and not attrs.get("name"):
             attrs["name"] = build_default_session_name(ifc_source, normalized)
@@ -270,7 +263,6 @@ class AnalysisSessionDetailSerializer(serializers.ModelSerializer):
     total_issues = serializers.SerializerMethodField()
     results = serializers.SerializerMethodField()
     report_pdf_url = serializers.SerializerMethodField()
-    report_json_url = serializers.SerializerMethodField()
 
     class Meta:
         model = AnalysisSession
@@ -285,7 +277,6 @@ class AnalysisSessionDetailSerializer(serializers.ModelSerializer):
             "started_at",
             "completed_at",
             "report_pdf_url",
-            "report_json_url",
             "report_generated_at",
             "results",
         ]
@@ -310,13 +301,3 @@ class AnalysisSessionDetailSerializer(serializers.ModelSerializer):
                 f"/api/analysis/sessions/{obj.id}/report/pdf/"
             )
         return f"/api/analysis/sessions/{obj.id}/report/pdf/"
-
-    def get_report_json_url(self, obj):
-        if not obj.report_json_path:
-            return None
-        request = self.context.get("request")
-        if request:
-            return request.build_absolute_uri(
-                f"/api/analysis/sessions/{obj.id}/report/json/"
-            )
-        return f"/api/analysis/sessions/{obj.id}/report/json/"

@@ -1,13 +1,11 @@
-import json
 import os
-from io import BytesIO
+from pathlib import Path
 
 from celery import group
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils import timezone
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 from .analysers import ANALYSER_REGISTRY
 from .constants import ANALYSIS_TYPE_LABELS, ANALYSIS_TYPE_VALUES
@@ -17,6 +15,18 @@ try:
     import ifcopenshell
 except Exception:  # pragma: no cover
     ifcopenshell = None
+
+try:
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+except Exception:  # pragma: no cover
+    Environment = None
+    FileSystemLoader = None
+    select_autoescape = None
+
+try:
+    from weasyprint import HTML
+except Exception:  # pragma: no cover
+    HTML = None
 
 
 def resolve_analysis_file_path(analysis_file: IFCAnalysisFile):
@@ -129,12 +139,16 @@ def launch_analysis_session(session: AnalysisSession):
     if not session.name:
         session.name = build_default_session_name(session.ifc_source, analysis_types)
 
+    if session.report_pdf_path:
+        try:
+            default_storage.delete(session.report_pdf_path)
+        except Exception:
+            pass
     session.analysis_types = analysis_types
     session.status = "running"
     session.started_at = timezone.now()
     session.completed_at = None
     session.report_pdf_path = ""
-    session.report_json_path = ""
     session.report_generated_at = None
     session.celery_group_id = ""
     session.save(
@@ -145,7 +159,6 @@ def launch_analysis_session(session: AnalysisSession):
             "started_at",
             "completed_at",
             "report_pdf_path",
-            "report_json_path",
             "report_generated_at",
             "celery_group_id",
         ]
@@ -344,92 +357,95 @@ def run_single_session_analysis(session: AnalysisSession, analysis_type: str, ta
     return result
 
 
-def _serialize_result_for_report(result: AnalysisResult):
-    return {
-        "id": str(result.id),
-        "analysis_type": result.analysis_type,
-        "status": result.status,
-        "severity": result.severity,
-        "summary": result.summary,
-        "issue_count": result.issue_count,
-        "duration_ms": result.duration_ms,
-        "completed_at": result.completed_at.isoformat() if result.completed_at else None,
-        "result_data": result.result_data,
-        "error_detail": result.error_detail,
+def _severity_rank(severity_value):
+    order = {
+        "critical": 0,
+        "error": 1,
+        "warning": 2,
+        "info": 3,
+        None: 4,
+        "": 4,
     }
+    return order.get(severity_value, 5)
 
 
-def build_session_report(session: AnalysisSession):
-    results = list(session.results.order_by("analysis_type"))
-    generated_at = timezone.now()
+def _build_report_scorecard(results):
+    total_issues = sum((result.issue_count or 0) for result in results)
+    status_counts = {"done": 0, "failed": 0, "skipped": 0}
+    severity_counts = {"critical": 0, "error": 0, "warning": 0, "info": 0}
 
-    payload = {
-        "session": {
-            "id": str(session.id),
-            "ifc_source_id": str(session.ifc_source_id),
-            "owner_id": str(session.owner_id),
-            "name": session.name,
-            "analysis_types": session.analysis_types,
-            "status": session.status,
-            "celery_group_id": session.celery_group_id,
-            "started_at": session.started_at.isoformat() if session.started_at else None,
-            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
-            "report_generated_at": generated_at.isoformat(),
-        },
-        "results": [_serialize_result_for_report(result) for result in results],
-    }
-
-    json_content = ContentFile(json.dumps(payload, indent=2).encode("utf-8"))
-    json_path = default_storage.save(
-        f"analytics_reports/json/{generated_at:%Y/%m/%d}/{session.id}.json",
-        json_content,
-    )
-
-    buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    pdf.drawString(72, 770, f"Analysis Session: {session.name}")
-    pdf.drawString(72, 755, f"Session ID: {session.id}")
-    pdf.drawString(72, 740, f"IFC Source: {session.ifc_source.name}")
-    pdf.drawString(72, 725, f"Status: {session.status}")
-    pdf.drawString(72, 710, f"Requested Types: {', '.join(session.analysis_types)}")
-    y = 680
     for result in results:
-        pdf.drawString(
-            72,
-            y,
-            f"{result.analysis_type}: {result.status} | {result.summary or 'No summary'}",
+        if result.status in status_counts:
+            status_counts[result.status] += 1
+        if result.severity in severity_counts:
+            severity_counts[result.severity] += 1
+
+    return {
+        "analyses_total": len(results),
+        "issues_total": total_issues,
+        "status_counts": status_counts,
+        "severity_counts": severity_counts,
+    }
+
+
+def generate_pdf_report(session: AnalysisSession):
+    if HTML is None or Environment is None:
+        raise RuntimeError(
+            "PDF generation requires WeasyPrint and Jinja2. Install dependencies first."
         )
-        y -= 18
-        if y < 72:
-            pdf.showPage()
-            y = 770
-    pdf.save()
-    buffer.seek(0)
-    pdf_path = default_storage.save(
-        f"analytics_reports/pdf/{generated_at:%Y/%m/%d}/{session.id}.pdf",
-        ContentFile(buffer.read()),
-    )
 
-    session.report_json_path = json_path
-    session.report_pdf_path = pdf_path
+    generated_at = timezone.now()
+    results = list(
+        session.results.select_related("ifc_source").all()
+    )
+    results.sort(key=lambda item: (_severity_rank(item.severity), item.analysis_type))
+    scorecard = _build_report_scorecard(results)
+
+    template_dir = Path(settings.BASE_DIR) / "templates" / "analytics"
+    template_env = Environment(
+        loader=FileSystemLoader(str(template_dir)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    template = template_env.get_template("analysis_report.html.j2")
+    html_string = template.render(
+        session=session,
+        results=results,
+        generated_at=generated_at,
+        scorecard=scorecard,
+        analysis_type_labels=ANALYSIS_TYPE_LABELS,
+    )
+    pdf_bytes = HTML(string=html_string, base_url=str(settings.BASE_DIR)).write_pdf()
+
+    filename = f"reports/report_{session.id}.pdf"
+    if session.report_pdf_path:
+        try:
+            default_storage.delete(session.report_pdf_path)
+        except Exception:
+            pass
+
+    saved_path = default_storage.save(filename, ContentFile(pdf_bytes))
+    session.report_pdf_path = saved_path
     session.report_generated_at = generated_at
-    session.save(
-        update_fields=[
-            "report_json_path",
-            "report_pdf_path",
-            "report_generated_at",
-        ]
-    )
-    return session
+    session.save(update_fields=["report_pdf_path", "report_generated_at"])
+    return saved_path
 
 
-def build_storage_url(path_value):
+def get_report_download_url(path_value, expires_in=3600):
     if not path_value:
         return ""
+    # Force signed URL generation for S3 storage even when public URL mode is enabled.
+    original_querystring_auth = getattr(default_storage, "querystring_auth", None)
     try:
+        if original_querystring_auth is False:
+            default_storage.querystring_auth = True
+        return default_storage.url(path_value, expire=expires_in)
+    except TypeError:
         return default_storage.url(path_value)
     except Exception:
         return path_value
+    finally:
+        if original_querystring_auth is False:
+            default_storage.querystring_auth = original_querystring_auth
 
 
 def refresh_session_status(session: AnalysisSession):
@@ -458,5 +474,4 @@ def refresh_session_status(session: AnalysisSession):
 
     session.completed_at = timezone.now()
     session.save(update_fields=["status", "completed_at"])
-    build_session_report(session)
     return session

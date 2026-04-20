@@ -76,7 +76,6 @@ class AnalysisSession(models.Model):
     )
     celery_group_id = models.CharField(max_length=255, blank=True, default="")
     report_pdf_path = models.TextField(blank=True, default="")
-    report_json_path = models.TextField(blank=True, default="")
     report_generated_at = models.DateTimeField(blank=True, null=True)
     started_at = models.DateTimeField(blank=True, null=True)
     completed_at = models.DateTimeField(blank=True, null=True)

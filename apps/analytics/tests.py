@@ -140,9 +140,8 @@ class AnalyticsSessionAPITests(TestCase):
     @patch("apps.analytics.views.run_analysis_session.delay")
     def test_create_session_queues_orchestrator_task(self, delay_mock):
         response = self.client.post(
-            "/api/analysis/sessions/create/",
+            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
-                "source_id": str(self.ifc_source.id),
                 "name": "Queued run",
                 "analysis_types": ["clash_detection", "code_compliance"],
             },
@@ -165,9 +164,8 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_runs_requested_analyses_and_generates_reports(self):
         response = self.client.post(
-            "/api/analysis/sessions/create/",
+            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
-                "source_id": str(self.ifc_source.id),
                 "name": "Coordination run",
                 "analysis_types": ["clash_detection", "code_compliance"],
             },
@@ -183,9 +181,8 @@ class AnalyticsSessionAPITests(TestCase):
         self.assertEqual(session.ifc_source_id, self.ifc_source.id)
         self.assertEqual(session.status, "done")
         self.assertTrue(session.celery_group_id)
-        self.assertTrue(session.report_pdf_path)
-        self.assertTrue(session.report_json_path)
-        self.assertIsNotNone(session.report_generated_at)
+        self.assertFalse(session.report_pdf_path)
+        self.assertIsNone(session.report_generated_at)
 
         results = list(session.results.order_by("analysis_type"))
         self.assertEqual(len(results), 2)
@@ -218,9 +215,8 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_marks_partial_when_some_results_fail(self):
         response = self.client.post(
-            "/api/analysis/sessions/create/",
+            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
-                "source_id": str(self.ifc_source.id),
                 "analysis_types": ["clash_detection", "code_compliance"],
             },
             format="json",
@@ -230,8 +226,7 @@ class AnalyticsSessionAPITests(TestCase):
 
         session = AnalysisSession.objects.prefetch_related("results").get(id=response.data["session_id"])
         self.assertEqual(session.status, "partial")
-        self.assertTrue(session.report_pdf_path)
-        self.assertTrue(session.report_json_path)
+        self.assertFalse(session.report_pdf_path)
 
         results = {result.analysis_type: result for result in session.results.all()}
         self.assertEqual(results["clash_detection"].status, "done")
@@ -250,10 +245,8 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_defaults_to_all_configured_analysis_types(self):
         response = self.client.post(
-            "/api/analysis/sessions/create/",
-            {
-                "source_id": str(self.ifc_source.id),
-            },
+            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            {},
             format="json",
         )
 
@@ -261,3 +254,48 @@ class AnalyticsSessionAPITests(TestCase):
         session = AnalysisSession.objects.get(id=response.data["session_id"])
         self.assertEqual(session.analysis_types, response.data["analysis_types"])
         self.assertGreater(len(session.analysis_types), 0)
+
+    @patch(
+        "apps.analytics.services.ANALYSER_REGISTRY",
+        {
+            "clash_detection": SuccessfulAnalyser,
+        },
+    )
+    def test_generate_pdf_report_on_demand_for_completed_session(self):
+        create_response = self.client.post(
+            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            {
+                "analysis_types": ["clash_detection"],
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 202, create_response.data)
+
+        session = AnalysisSession.objects.get(id=create_response.data["session_id"])
+        self.assertEqual(session.status, "done")
+        self.assertFalse(session.report_pdf_path)
+
+        report_response = self.client.post(
+            f"/api/analysis/sessions/{session.id}/report/pdf/",
+            format="json",
+        )
+        self.assertEqual(report_response.status_code, 200, report_response.data)
+        self.assertIn("report_pdf_path", report_response.data)
+
+        session.refresh_from_db()
+        self.assertTrue(session.report_pdf_path)
+        self.assertIsNotNone(session.report_generated_at)
+
+    def test_generate_pdf_report_rejects_pending_session(self):
+        session = AnalysisSession.objects.create(
+            ifc_source=self.ifc_source,
+            owner=self.user,
+            name="Pending Report Session",
+            analysis_types=["clash_detection"],
+            status="pending",
+        )
+        response = self.client.post(
+            f"/api/analysis/sessions/{session.id}/report/pdf/",
+            format="json",
+        )
+        self.assertEqual(response.status_code, 422, response.data)

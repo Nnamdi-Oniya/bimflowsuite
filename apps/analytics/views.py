@@ -1,5 +1,8 @@
 from drf_spectacular.utils import extend_schema
+from django.conf import settings
+from django.core.files.storage import default_storage
 from django.http import FileResponse
+from django.shortcuts import redirect
 from rest_framework import status
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +17,7 @@ from .serializers import (
     AnalysisSourceSerializer,
     AnalysisSourceUploadSerializer,
 )
+from .services import generate_pdf_report, get_report_download_url
 from .tasks import run_analysis_session
 
 
@@ -86,56 +90,89 @@ class AnalysisSessionDetailView(RetrieveAPIView):
         return self.queryset.filter(owner=self.request.user)
 
 
-class AnalysisSessionReportDownloadView(APIView):
+class AnalysisSessionPDFReportView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def _get_session(self, request, id):
+        try:
+            return AnalysisSession.objects.get(id=id, owner=request.user)
+        except AnalysisSession.DoesNotExist:
+            return None
 
     @extend_schema(
         parameters=[],
-        responses={200: None},
+        request=None,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {"report_pdf_path": {"type": "string"}},
+            },
+            422: {
+                "type": "object",
+                "properties": {"error": {"type": "string"}},
+            },
+        },
     )
-    def get(self, request, id, report_type):
-        """
-        Download analysis report (PDF or JSON).
-
-        report_type: "pdf" or "json"
-        """
-        try:
-            session = AnalysisSession.objects.get(id=id, owner=request.user)
-        except AnalysisSession.DoesNotExist:
+    def post(self, request, id):
+        session = self._get_session(request, id)
+        if session is None:
             return Response(
                 {"error": "Analysis session not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if report_type == "pdf":
-            report_path = session.report_pdf_path
-            filename = f"{session.name}_analysis.pdf"
-            content_type = "application/pdf"
-        elif report_type == "json":
-            report_path = session.report_json_path
-            filename = f"{session.name}_analysis.json"
-            content_type = "application/json"
-        else:
+        if session.status not in {"done", "partial"}:
             return Response(
-                {"error": "Invalid report_type. Use 'pdf' or 'json'."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not report_path:
-            return Response(
-                {"error": "Report not yet generated. Check session status."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "Report can only be generated when session status is done or partial."},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
 
         try:
-            from django.core.files.storage import default_storage
-
-            file_obj = default_storage.open(report_path, "rb")
-            response = FileResponse(file_obj, content_type=content_type)
-            response["Content-Disposition"] = f'attachment; filename="{filename}"'
-            return response
-        except Exception as e:
+            report_path = generate_pdf_report(session)
+        except Exception as exc:
             return Response(
-                {"error": f"Report file not accessible: {str(e)}"},
+                {"error": f"Failed to generate report: {str(exc)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({"report_pdf_path": report_path}, status=status.HTTP_200_OK)
+
+    @extend_schema(parameters=[], responses={200: None})
+    def get(self, request, id):
+        session = self._get_session(request, id)
+        if session is None:
+            return Response(
+                {"error": "Analysis session not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not session.report_pdf_path:
+            return Response(
+                {"error": "Report not yet generated."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        s3_enabled = bool(
+            getattr(settings, "S3_ENABLED", getattr(settings, "USE_S3", False))
+        )
+        if s3_enabled:
+            presigned_url = get_report_download_url(session.report_pdf_path, expires_in=3600)
+            if not presigned_url:
+                return Response(
+                    {"error": "Report URL is unavailable."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            return redirect(presigned_url)
+
+        try:
+            file_obj = default_storage.open(session.report_pdf_path, "rb")
+            response = FileResponse(file_obj, content_type="application/pdf")
+            response["Content-Disposition"] = (
+                f'attachment; filename="report_{session.id}.pdf"'
+            )
+            return response
+        except Exception as exc:
+            return Response(
+                {"error": f"Report file not accessible: {str(exc)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

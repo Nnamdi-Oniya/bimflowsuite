@@ -3,7 +3,7 @@ from .views import (
     AnalysisGeneratedSourceView,
     AnalysisSessionCreateView,
     AnalysisSessionDetailView,
-    AnalysisSessionReportDownloadView,
+    AnalysisSessionPDFReportView,
     AnalysisSourceUploadView,
 )
 
@@ -29,8 +29,8 @@ urlpatterns = [
         name="analysis-session-detail",
     ),
     path(
-        "sessions/<uuid:id>/report/<str:report_type>/",
-        AnalysisSessionReportDownloadView.as_view(),
-        name="analysis-session-report-download",
+        "sessions/<uuid:id>/report/pdf/",
+        AnalysisSessionPDFReportView.as_view(),
+        name="analysis-session-report-pdf",
     ),
 ]

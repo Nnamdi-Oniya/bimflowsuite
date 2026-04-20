@@ -20,7 +20,6 @@ class AnalysisSessionAdmin(admin.ModelAdmin):
         "completed_at",
         "report_generated_at",
         "report_pdf_path",
-        "report_json_path",
         "celery_group_id",
     ]
 
