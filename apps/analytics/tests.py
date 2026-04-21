@@ -101,7 +101,7 @@ class AnalyticsSessionAPITests(TestCase):
 
     def test_upload_source_uses_contract_endpoint_and_shape(self):
         response = self.client.post(
-            "/api/analysis/sources/upload",
+            "/api/v1/analysis/sources/upload",
             {
                 "source_type": "uploaded",
                 "file": SimpleUploadedFile(
@@ -121,7 +121,7 @@ class AnalyticsSessionAPITests(TestCase):
 
     def test_generated_source_uses_existing_server_file_id(self):
         response = self.client.post(
-            "/api/analysis/sources/generated",
+            "/api/v1/analysis/sources/generated",
             {
                 "generated_ifc_id": str(self.generated_ifc.id),
                 "name": "Existing Server IFC",
@@ -140,7 +140,7 @@ class AnalyticsSessionAPITests(TestCase):
     @patch("apps.analytics.views.run_analysis_session.delay")
     def test_create_session_queues_orchestrator_task(self, delay_mock):
         response = self.client.post(
-            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            f"/api/v1/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
                 "name": "Queued run",
                 "analysis_types": ["clash_detection", "code_compliance"],
@@ -164,7 +164,7 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_runs_requested_analyses_and_generates_reports(self):
         response = self.client.post(
-            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            f"/api/v1/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
                 "name": "Coordination run",
                 "analysis_types": ["clash_detection", "code_compliance"],
@@ -196,7 +196,7 @@ class AnalyticsSessionAPITests(TestCase):
         self.assertEqual(results[1].issue_count, 0)
         self.assertEqual(results[1].severity, "info")
 
-        detail_response = self.client.get(f"/api/analysis/sessions/{session.id}/")
+        detail_response = self.client.get(f"/api/v1/analysis/sessions/{session.id}/")
         self.assertEqual(detail_response.status_code, 200, detail_response.data)
         self.assertEqual(detail_response.data["id"], str(session.id))
         self.assertEqual(detail_response.data["name"], "Coordination run")
@@ -215,7 +215,7 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_marks_partial_when_some_results_fail(self):
         response = self.client.post(
-            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            f"/api/v1/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
                 "analysis_types": ["clash_detection", "code_compliance"],
             },
@@ -245,7 +245,7 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_create_session_defaults_to_all_configured_analysis_types(self):
         response = self.client.post(
-            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            f"/api/v1/analysis/file/{self.ifc_source.id}/sessions/create/",
             {},
             format="json",
         )
@@ -263,7 +263,7 @@ class AnalyticsSessionAPITests(TestCase):
     )
     def test_generate_pdf_report_on_demand_for_completed_session(self):
         create_response = self.client.post(
-            f"/api/analysis/file/{self.ifc_source.id}/sessions/create/",
+            f"/api/v1/analysis/file/{self.ifc_source.id}/sessions/create/",
             {
                 "analysis_types": ["clash_detection"],
             },
@@ -276,7 +276,7 @@ class AnalyticsSessionAPITests(TestCase):
         self.assertFalse(session.report_pdf_path)
 
         report_response = self.client.post(
-            f"/api/analysis/sessions/{session.id}/report/pdf/",
+            f"/api/v1/analysis/sessions/{session.id}/report/pdf/",
             format="json",
         )
         self.assertEqual(report_response.status_code, 200, report_response.data)
@@ -295,7 +295,7 @@ class AnalyticsSessionAPITests(TestCase):
             status="pending",
         )
         response = self.client.post(
-            f"/api/analysis/sessions/{session.id}/report/pdf/",
+            f"/api/v1/analysis/sessions/{session.id}/report/pdf/",
             format="json",
         )
         self.assertEqual(response.status_code, 422, response.data)
