@@ -89,7 +89,6 @@ BIMFlow Suite is designed for:
 - **`apps/parametric_generator/`** — Project model (30+ metadata fields), IFC generation, Celery tasks for async processing
 - **`apps/compliance_engine/`** — Rule engine (YAML evaluation), advanced clash detection, compliance check tracking
 - **`apps/analytics/`** — IFC upload handling, geometry analysis, project metrics extraction
-- **Frontend Integration Docs** — `docs/analytics-integration.md` (session flow + on-demand PDF report endpoints)
 - **`config/settings/`** — Environment-specific configurations (local, development, production)
 - **`rulepacks/`** — YAML rule definitions for building, bridge, road, tunnel, and generic assets
 

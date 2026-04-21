@@ -83,7 +83,7 @@ class IFCAnalysisFileSerializer(serializers.ModelSerializer):
 
 class AnalysisSourceSerializer(serializers.ModelSerializer):
     source_id = serializers.UUIDField(source="id", read_only=True)
-    generated_ifc_id = serializers.UUIDField(source="generated_ifc_id", read_only=True)
+    generated_ifc_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = IFCAnalysisFile
@@ -107,7 +107,7 @@ class AnalysisSourceSerializer(serializers.ModelSerializer):
         ]
 
 
-class AnalysisSourceUploadSerializer(serializers.ModelSerializer):
+class AnalysisSourceUploadSerializer(AnalysisSourceSerializer):
     file = serializers.FileField(write_only=True, source="uploaded_ifc")
 
     class Meta(AnalysisSourceSerializer.Meta):
@@ -298,6 +298,6 @@ class AnalysisSessionDetailSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request:
             return request.build_absolute_uri(
-                f"/api/analysis/sessions/{obj.id}/report/pdf/"
+                f"/api/v1/analysis/sessions/{obj.id}/report/pdf/"
             )
-        return f"/api/analysis/sessions/{obj.id}/report/pdf/"
+        return f"/api/v1/analysis/sessions/{obj.id}/report/pdf/"
