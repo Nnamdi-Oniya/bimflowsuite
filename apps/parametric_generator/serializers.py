@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Site, GeneratedIFC
+from .models import Project, Site, Facility, Material, GeneratedIFC, SpatialStructure, Element
 from .schemas import validate_type_metadata
 
 
@@ -12,11 +12,10 @@ class SiteSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "site_name",
-            # Type & Metadata
-            "project_type",
             "type_metadata",
             # Location
             "address",
+            "site_image",
             # Geometry
             "latitude",
             "longitude",
@@ -45,12 +44,15 @@ class SiteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, data):
-        """Validate type_metadata against project_type schema"""
-        project_type = data.get("project_type")
+        """Validate type_metadata (if provided)"""
+        project_type = None  # project type removed; validation skipped unless provided
         type_metadata = data.get("type_metadata", {})
 
         if project_type and type_metadata:
-            is_valid, errors = validate_type_metadata(project_type, type_metadata)
+            try:
+                is_valid, errors = validate_type_metadata(project_type, type_metadata)
+            except ValueError as exc:
+                raise serializers.ValidationError({"project_type": str(exc)})
             if not is_valid:
                 raise serializers.ValidationError(
                     {
@@ -72,10 +74,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             # Basic info
             "name",
             "description",
+            "project_image",
             "project_number",
             "phase",
-            # Project Type
-            "project_type",
             # Client
             "client_name",
             "client_type",
@@ -99,6 +100,66 @@ class ProjectSerializer(serializers.ModelSerializer):
         """Associate project with current user"""
         validated_data["user"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class FacilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Facility
+        fields = [
+            "id",
+            "project",
+            "site",
+            "name",
+            "facility_type",
+            "description",
+            "facility_image",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class MaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Material
+        fields = [
+            "id",
+            "facility",
+            "name",
+            "code",
+            "description",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class MaterialCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Material
+        fields = ["name", "code", "description", "properties"]
+
+
+class FacilityStructureCreateSerializer(serializers.Serializer):
+    """Serializer used for facility structure/create swagger input."""
+
+    materials = MaterialCreateSerializer(
+        many=True,
+        required=False,
+        help_text="List of materials to create for this facility (facility is implied by path).",
+    )
+    spatial_structures = serializers.ListField(
+        child=serializers.DictField(),
+        required=True,
+        help_text="Tree of spatial structures; each dict includes spatial_type, name, optional properties, children, and client_id.",
+    )
+    elements = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        help_text="Elements linked to spatial structures; each dict includes asset_type, name, spatial_structure or spatial_structure_client_id, optional geometry/position/material/properties.",
+    )
 
 
 class GeneratedIFCSerializer(serializers.ModelSerializer):
@@ -141,9 +202,6 @@ class GeneratedIFCSerializer(serializers.ModelSerializer):
     def get_download_url(self, obj):
         """Return download URL for IFC file"""
         if obj.ifc_file:
-            request = self.context.get("request")
-            if request is not None:
-                return request.build_absolute_uri(obj.ifc_file.url)
             return obj.ifc_file.url
         return None
 
@@ -156,3 +214,160 @@ class ProjectDetailSerializer(ProjectSerializer):
 
     class Meta(ProjectSerializer.Meta):
         fields = ProjectSerializer.Meta.fields + ["generated_ifcs", "sites"]
+
+
+class ElementSimpleSerializer(serializers.ModelSerializer):
+    """Simple element serializer for nested representation"""
+
+    asset_type_display = serializers.CharField(
+        source="get_asset_type_display", read_only=True
+    )
+
+    class Meta:
+        model = Element
+        fields = [
+            "id",
+            "asset_type",
+            "asset_type_display",
+            "name",
+            "description",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class SpatialStructureSerializer(serializers.ModelSerializer):
+    """Serializer for SpatialStructure with nested children and assets"""
+
+    spatial_type_display = serializers.CharField(
+        source="get_spatial_type_display", read_only=True
+    )
+    children = serializers.SerializerMethodField(read_only=True)
+    assets = ElementSimpleSerializer(many=True, read_only=True)
+    parent_name = serializers.CharField(source="parent.name", read_only=True)
+
+    class Meta:
+        model = SpatialStructure
+        fields = [
+            "id",
+            "site",
+            "parent",
+            "parent_name",
+            "spatial_type",
+            "spatial_type_display",
+            "name",
+            "description",
+            "level",
+            "order_in_parent",
+            "properties",
+            "children",
+            "assets",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "level", "children", "created_at", "updated_at"]
+
+    def get_children(self, obj):
+        """Get nested children recursively"""
+        children = obj.children.all()
+        if children.exists():
+            return SpatialStructureSerializer(
+                children, many=True, context=self.context
+            ).data
+        return []
+
+
+class SiteStructureSerializer(serializers.ModelSerializer):
+    """Serializer for Site with complete spatial structure (structures + assets)"""
+
+    spatial_structures = serializers.SerializerMethodField()
+    asset_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Site
+        fields = [
+            "id",
+            "project",
+            "site_name",
+            "project_type",
+            "latitude",
+            "longitude",
+            "elevation",
+            "coordinate_reference_system",
+            "ifc_schema_version",
+            "length_unit",
+            "area_unit",
+            "volume_unit",
+            "spatial_structures",
+            "asset_summary",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_spatial_structures(self, obj):
+        """Get root spatial structures (those without parents)"""
+        root_structures = obj.spatial_structures.filter(parent__isnull=True).order_by(
+            "order_in_parent"
+        )
+        return SpatialStructureSerializer(
+            root_structures, many=True, context=self.context
+        ).data
+
+    def get_asset_summary(self, obj):
+        """Get summary of assets by type"""
+        assets = obj.assets.all()
+        summary = {}
+        for asset_type, display_name in Element.ASSET_TYPE_CHOICES:
+            count = assets.filter(asset_type=asset_type).count()
+            if count > 0:
+                summary[asset_type] = count
+        return summary
+
+
+class ElementSerializer(serializers.ModelSerializer):
+    """Full serializer for Element with relationships"""
+
+    asset_type_display = serializers.CharField(
+        source="get_asset_type_display", read_only=True
+    )
+    spatial_structure_name = serializers.CharField(
+        source="spatial_structure.name", read_only=True
+    )
+    site_name = serializers.CharField(source="site.site_name", read_only=True)
+
+    class Meta:
+        model = Element
+        fields = [
+            "id",
+            "spatial_structure",
+            "spatial_structure_name",
+            "site",
+            "site_name",
+            "facility",
+            "asset_type",
+            "asset_type_display",
+            "name",
+            "description",
+            "material",
+            "geometry",
+            "position",
+            "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "site", "created_at", "updated_at"]
+
+    def validate(self, data):
+        """Ensure asset's spatial_structure belongs to the same site"""
+        spatial_structure = data.get("spatial_structure")
+        site = self.context.get("site")  # Site should be passed via context
+
+        if spatial_structure and site and spatial_structure.site != site:
+            raise serializers.ValidationError(
+                "Spatial structure must belong to the same site"
+            )
+
+        return data

@@ -1,0 +1,26 @@
+<html>
+  <body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+    <p>Dear {{ first_name }} {{ last_name }},</p>
+    <p>Welcome to BIMFlow Suite! Your account has been created by our team.</p>
+    <p><strong>Your username:</strong> {{ username }}</p>
+    <p>To complete your registration and set your password, click the button below:</p>
+    <p style="margin: 24px 0;">
+      <a
+        href="{{ password_setup_url }}"
+        style="background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 6px; display: inline-block; font-weight: 600;"
+      >
+        Set Your Password
+      </a>
+    </p>
+    <p>This link will expire in 24 hours.</p>
+    <p>If the button does not work, copy and paste this link into your browser:</p>
+    <p><a href="{{ password_setup_url }}">{{ password_setup_url }}</a></p>
+    {% if project_name %}
+    <p>
+      Your Project: We've automatically created a project '{{ project_name }}' based on your submission.
+      You can view and edit it after setting your password.
+    </p>
+    {% endif %}
+    <p>Best regards,<br />BIMFlow Suite Team</p>
+  </body>
+</html>

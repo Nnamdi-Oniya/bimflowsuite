@@ -2,7 +2,7 @@ import graphene
 from graphene_django import DjangoObjectType
 from apps.parametric_generator.models import Project, GeneratedIFC
 from apps.compliance_engine.models import ComplianceCheck, RulePack
-from apps.analytics.models import AnalyticsRun
+from apps.analytics.models import AnalysisSession
 
 
 class ProjectType(DjangoObjectType):
@@ -29,9 +29,9 @@ class RulePackType(DjangoObjectType):
         fields = "__all__"
 
 
-class AnalyticsRunType(DjangoObjectType):
+class AnalysisSessionType(DjangoObjectType):
     class Meta:
-        model = AnalyticsRun
+        model = AnalysisSession
         fields = "__all__"
 
 
@@ -41,7 +41,7 @@ class Query(graphene.ObjectType):
     all_generated_ifcs = graphene.List(GeneratedIFCType)
     generated_ifc_by_id = graphene.Field(GeneratedIFCType, id=graphene.Int())
     all_compliance_checks = graphene.List(ComplianceCheckType)
-    all_analytics_runs = graphene.List(AnalyticsRunType)
+    all_analytics_sessions = graphene.List(AnalysisSessionType)
 
     def resolve_all_projects(root, info):
         return Project.objects.all()
@@ -58,8 +58,8 @@ class Query(graphene.ObjectType):
     def resolve_all_compliance_checks(root, info):
         return ComplianceCheck.objects.all()
 
-    def resolve_all_analytics_runs(root, info):
-        return AnalyticsRun.objects.all()
+    def resolve_all_analytics_sessions(root, info):
+        return AnalysisSession.objects.all()
 
 
 class Mutation(graphene.ObjectType):

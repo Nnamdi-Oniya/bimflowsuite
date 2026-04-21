@@ -124,7 +124,7 @@
 │ User fills form      │
 │ (30+ project fields) │
 └────────┬─────────────┘
-         │ POST /api/v1/generate/projects/
+         │ POST /api/v1/generate-model/projects/
          ▼
 ┌────────────────────────────────────────┐
 │ Parametric Generator App               │
@@ -132,7 +132,7 @@
 │ - Create Project record                │
 │ - Associate with user/org              │
 └────────┬───────────────────────────────┘
-         │ POST /api/v1/generate/ifcs/create_for_project/
+         │ POST /api/v1/generate-model/ifcs/create_for_project/
          ▼
 ┌────────────────────────────────────────┐
 │ GeneratedIFC ViewSet                   │

@@ -46,6 +46,55 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ["username", "email", "first_name", "last_name"]
     add_form = CustomUserCreationForm
 
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        (
+            "Personal info",
+            {
+                "fields": (
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "phone_number",
+                    "location",
+                    "company",
+                    "job_title",
+                    "profile_picture",
+                )
+            },
+        ),
+        (
+            "Permissions",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
+        ),
+        ("Important dates", {"fields": ("last_login", "date_joined")}),
+    )
+
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": ("username", "email", "password1", "password2"),
+            },
+        ),
+    )
+
+    def save_model(self, request, obj, form, change):
+        """Override to ensure new users are created as inactive"""
+        # If this is a new user (change=False), set is_active to False
+        if not change:
+            obj.is_active = False
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(RequestSubmission)
 class RequestSubmissionAdmin(admin.ModelAdmin):
@@ -236,12 +285,12 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
-                "<int:submission_id>/send-response/",
+                "<uuid:submission_id>/send-response/",
                 self.admin_site.admin_view(self.send_user_response),
                 name="send_user_response",
             ),
             path(
-                "<int:submission_id>/onboard-user/",
+                "<uuid:submission_id>/onboard-user/",
                 self.admin_site.admin_view(self.onboard_user_view),
                 name="onboard_user",
             ),
@@ -264,8 +313,6 @@ class RequestSubmissionAdmin(admin.ModelAdmin):
                     f"Re: Your {submission.get_request_type_display()} - BIMFlow Suite"
                 )
                 body = f"""Dear {submission.firstname} {submission.lastname},
-
-Thank you for your {submission.get_request_type_display().lower()} submission.
 
 {response_text}
 

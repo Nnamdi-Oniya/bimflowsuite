@@ -1,10 +1,12 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, viewsets, permissions
+from rest_framework import status, viewsets, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate, get_user_model
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
@@ -13,6 +15,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 import threading
 import logging
+import re
 
 User = get_user_model()
 from .serializers import (
@@ -24,79 +27,62 @@ from .serializers import (
     OrganizationMemberSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
+    ChangePasswordSerializer,
+    EmailOrUsernameTokenObtainPairSerializer,
+    UserProfileSerializer,
 )
 from .models import Organization, OrganizationMember, PasswordResetToken
-from helper.utils import send_request_notification
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from helper.utils import send_request_notifications
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiResponse,
+    inline_serializer,
+)
 
 logger = logging.getLogger(__name__)
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+
+@extend_schema_view(
+    post=extend_schema(
+        tags=["token"],
+        description="Obtain JWT tokens using username or email and password.",
+    )
+)
+class EmailOrUsernameTokenObtainPairView(TokenObtainPairView):
+    """JWT token endpoint that supports login via username or email."""
+
+    serializer_class = EmailOrUsernameTokenObtainPairSerializer
 
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Login with username and password to get JWT tokens",
-        request_body=LoginSerializer,
+    @extend_schema(
+        description="Login with username or email and password to get JWT tokens.",
+        request=LoginSerializer,
         responses={
-            200: openapi.Response(
-                description="Login successful",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "user": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                                "username": openapi.Schema(type=openapi.TYPE_STRING),
-                                "email": openapi.Schema(type=openapi.TYPE_STRING),
-                                "date_joined": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
-                        "tokens": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "access": openapi.Schema(type=openapi.TYPE_STRING),
-                                "refresh": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
-                    },
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad request",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "username": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                        "password": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                    },
-                ),
-            ),
-            401: openapi.Response(
-                description="Invalid credentials",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "error": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
+            200: OpenApiResponse(description="Login successful"),
+            400: OpenApiResponse(description="Bad request"),
+            401: OpenApiResponse(description="Invalid credentials"),
         },
     )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
-            username = serializer.validated_data["username"]
+            username_or_email = serializer.validated_data["username_or_email"].strip()
             password = serializer.validated_data["password"]
-            user = authenticate(username=username, password=password)
+            is_email = bool(EMAIL_PATTERN.match(username_or_email))
+
+            if is_email:
+                user = User.objects.filter(email__iexact=username_or_email).first()
+            else:
+                user = User.objects.filter(username__iexact=username_or_email).first()
+
+            if not user or not user.check_password(password) or not user.is_active:
+                user = None
+
             if user:
                 refresh = RefreshToken.for_user(user)
                 tokens = {"access": str(refresh.access_token), "refresh": str(refresh)}
@@ -118,54 +104,12 @@ class LoginView(APIView):
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Register a new user account",
-        request_body=RegisterSerializer,
+    @extend_schema(
+        description="Register a new user account.",
+        request=RegisterSerializer,
         responses={
-            201: openapi.Response(
-                description="User created successfully",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "user": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                                "username": openapi.Schema(type=openapi.TYPE_STRING),
-                                "email": openapi.Schema(type=openapi.TYPE_STRING),
-                                "date_joined": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
-                        "tokens": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "access": openapi.Schema(type=openapi.TYPE_STRING),
-                                "refresh": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
-                    },
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad request - validation errors",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "username": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                        "email": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                        "password": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                    },
-                ),
-            ),
+            201: OpenApiResponse(description="User created successfully"),
+            400: OpenApiResponse(description="Bad request - validation errors"),
         },
     )
     def post(self, request):
@@ -191,66 +135,29 @@ class RequestSubmissionView(APIView):
 
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Submit a request (demo, general enquiries, compliance validation, or other)",
-        request_body=RequestSubmissionSerializer,
+    @extend_schema(
+        description=(
+            "Submit a request (demo, general enquiries, compliance validation, or other)."
+        ),
+        request=RequestSubmissionSerializer,
         responses={
-            201: openapi.Response(
-                description="Request submitted successfully",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "message": openapi.Schema(type=openapi.TYPE_STRING),
-                        "demo_request": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                                "request_type": openapi.Schema(
-                                    type=openapi.TYPE_STRING
-                                ),
-                                "firstname": openapi.Schema(type=openapi.TYPE_STRING),
-                                "lastname": openapi.Schema(type=openapi.TYPE_STRING),
-                                "email": openapi.Schema(type=openapi.TYPE_STRING),
-                                "company_name": openapi.Schema(
-                                    type=openapi.TYPE_STRING
-                                ),
-                                "created_at": openapi.Schema(type=openapi.TYPE_STRING),
-                            },
-                        ),
-                    },
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad request - validation errors",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "firstname": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                        "email": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(type=openapi.TYPE_STRING),
-                        ),
-                    },
-                ),
-            ),
+            201: OpenApiResponse(description="Request submitted successfully"),
+            400: OpenApiResponse(description="Bad request - validation errors"),
         },
     )
     def post(self, request):
         """
         Submit a new request with user details and consent information.
         Supports request types: Request a Demo, General Enquiries, Compliance Validation, Other.
-        Email notification will be sent to admin asynchronously.
+        Sends admin notification and user acknowledgement emails asynchronously.
         """
         serializer = RequestSubmissionSerializer(data=request.data)
         if serializer.is_valid():
             submission = serializer.save()
 
-            # Send email notification to admin asynchronously in a background thread
+            # Send admin + user acknowledgement emails asynchronously
             email_thread = threading.Thread(
-                target=send_request_notification, args=(submission,), daemon=True
+                target=send_request_notifications, args=(submission,), daemon=True
             )
             email_thread.start()
 
@@ -277,51 +184,23 @@ class ActivateAccountView(APIView):
 
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Activate user account by verifying email, uid, token and setting password. Marks user as active.",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                "email": openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    description="User email address (base64 encoded)",
-                ),
-                "uid": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="User ID (base64 encoded)"
-                ),
-                "token": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="Activation token"
-                ),
-                "password": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="New password"
-                ),
-                "password_confirm": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="Confirm password"
-                ),
+    @extend_schema(
+        description=(
+            "Activate user account by verifying email, uid, token and setting password."
+        ),
+        request=inline_serializer(
+            name="ActivateAccountRequest",
+            fields={
+                "email": serializers.CharField(),
+                "uid": serializers.CharField(),
+                "token": serializers.CharField(),
+                "password": serializers.CharField(),
+                "password_confirm": serializers.CharField(),
             },
-            required=["email", "uid", "token", "password", "password_confirm"],
         ),
         responses={
-            200: openapi.Response(
-                description="Account activated successfully",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                        "message": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad request - validation errors",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                        "error": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
+            200: OpenApiResponse(description="Account activated successfully"),
+            400: OpenApiResponse(description="Bad request - validation errors"),
         },
     )
     def post(self, request):
@@ -603,14 +482,12 @@ class ForgotPasswordView(APIView):
 
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Request password reset token. Email will be sent if account exists. No response indicates success (security best practice).",
-        request_body=ForgotPasswordSerializer,
-        responses={
-            204: openapi.Response(
-                description="Password reset email sent (if account exists)",
-            ),
-        },
+    @extend_schema(
+        description=(
+            "Request password reset token. If account exists, reset email is sent."
+        ),
+        request=ForgotPasswordSerializer,
+        responses={204: OpenApiResponse(description="No content")},
     )
     def post(self, request):
         """
@@ -686,30 +563,12 @@ class ResetPasswordView(APIView):
 
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Reset password using valid reset token",
-        request_body=ResetPasswordSerializer,
+    @extend_schema(
+        description="Reset password using valid reset token.",
+        request=ResetPasswordSerializer,
         responses={
-            200: openapi.Response(
-                description="Password reset successful",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                        "message": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad request - invalid token or password",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "success": openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                        "error": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
+            200: OpenApiResponse(description="Password reset successful"),
+            400: OpenApiResponse(description="Bad request - invalid token or password"),
         },
     )
     def post(self, request):
@@ -769,3 +628,83 @@ class ResetPasswordView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ChangePasswordView(APIView):
+    """View for changing password for authenticated users."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Change password for authenticated user by providing current password.",
+        request=ChangePasswordSerializer,
+        responses={
+            200: OpenApiResponse(description="Password changed successfully"),
+            400: OpenApiResponse(description="Bad request - validation errors"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+    )
+    def post(self, request):
+        """Change current user's password."""
+        serializer = ChangePasswordSerializer(
+            data=request.data, context={"request": request}
+        )
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "success": False,
+                    "error": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save()
+
+        logger.info(f"Password changed successfully for user {request.user.email}")
+        return Response(
+            {
+                "success": True,
+                "message": "Password has been changed successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class UserProfileView(APIView):
+    """Endpoint to get and update current user profile."""
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+    @extend_schema(
+        description="Get current user profile with all details.",
+        responses={
+            200: UserProfileSerializer,
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+    )
+    def get(self, request):
+        """Get current authenticated user's profile."""
+        serializer = UserProfileSerializer(request.user, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Update current user profile.",
+        request=UserProfileSerializer,
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="Bad request"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+    )
+    def put(self, request):
+        """Update current authenticated user's profile."""
+        serializer = UserProfileSerializer(
+            request.user, data=request.data, partial=True, context={"request": request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            logger.info(f"User profile updated: {request.user.email}")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

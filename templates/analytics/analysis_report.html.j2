@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Analysis Report - {{ session.name }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Arial, sans-serif; color: #1a1a1a; font-size: 12px; }
+    h1, h2, h3 { margin: 0 0 8px 0; }
+    .meta { margin-bottom: 16px; color: #555; }
+    .scorecard { display: table; width: 100%; margin: 12px 0 16px 0; }
+    .score-row { display: table-row; }
+    .score-cell { display: table-cell; border: 1px solid #ddd; padding: 8px; }
+    .section { margin-top: 16px; page-break-inside: avoid; border-top: 1px solid #eee; padding-top: 10px; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white; }
+    .critical { background: #b91c1c; }
+    .error { background: #dc2626; }
+    .warning { background: #d97706; }
+    .info { background: #2563eb; }
+    .muted { color: #666; }
+    pre { background: #f8f8f8; padding: 8px; border: 1px solid #eee; white-space: pre-wrap; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>IFC Analysis Report</h1>
+  <div class="meta">
+    <div><strong>Session:</strong> {{ session.name }}</div>
+    <div><strong>Session ID:</strong> {{ session.id }}</div>
+    <div><strong>Source:</strong> {{ session.ifc_source.name }}</div>
+    <div><strong>Status:</strong> {{ session.status }}</div>
+    <div><strong>Generated:</strong> {{ generated_at }}</div>
+  </div>
+
+  <h2>Summary Scorecard</h2>
+  <div class="scorecard">
+    <div class="score-row">
+      <div class="score-cell"><strong>Total analyses</strong><br>{{ scorecard.analyses_total }}</div>
+      <div class="score-cell"><strong>Total issues</strong><br>{{ scorecard.issues_total }}</div>
+      <div class="score-cell"><strong>Done</strong><br>{{ scorecard.status_counts.done }}</div>
+      <div class="score-cell"><strong>Failed</strong><br>{{ scorecard.status_counts.failed }}</div>
+      <div class="score-cell"><strong>Skipped</strong><br>{{ scorecard.status_counts.skipped }}</div>
+    </div>
+    <div class="score-row">
+      <div class="score-cell"><strong>Critical</strong><br>{{ scorecard.severity_counts.critical }}</div>
+      <div class="score-cell"><strong>Error</strong><br>{{ scorecard.severity_counts.error }}</div>
+      <div class="score-cell"><strong>Warning</strong><br>{{ scorecard.severity_counts.warning }}</div>
+      <div class="score-cell"><strong>Info</strong><br>{{ scorecard.severity_counts.info }}</div>
+      <div class="score-cell"></div>
+    </div>
+  </div>
+
+  {% for result in results %}
+  <div class="section">
+    <h3>
+      {{ analysis_type_labels.get(result.analysis_type, result.analysis_type) }}
+      {% if result.severity %}
+      <span class="badge {{ result.severity }}">{{ result.severity }}</span>
+      {% endif %}
+    </h3>
+    <div><strong>Status:</strong> {{ result.status }}</div>
+    <div><strong>Issue count:</strong> {{ result.issue_count or 0 }}</div>
+    {% if result.duration_ms is not none %}
+    <div><strong>Duration:</strong> {{ result.duration_ms }} ms</div>
+    {% endif %}
+    {% if result.summary %}
+    <div><strong>Summary:</strong> {{ result.summary }}</div>
+    {% endif %}
+    {% if result.error_detail %}
+    <div><strong>Error:</strong></div>
+    <pre>{{ result.error_detail }}</pre>
+    {% endif %}
+    {% if result.result_data %}
+    <div class="muted"><strong>Result data:</strong></div>
+    <pre>{{ result.result_data }}</pre>
+    {% endif %}
+  </div>
+  {% endfor %}
+</body>
+</html>

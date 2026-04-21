@@ -108,7 +108,7 @@ def check_django_models():
         from apps.users.models import Organization, RequestSubmission
         from apps.parametric_generator.models import Project, GeneratedIFC
         from apps.compliance_engine.models import ComplianceCheck, RulePack
-        from apps.analytics.models import AnalyticsRun
+        from apps.analytics.models import AnalysisSession
         from django.contrib.auth import get_user_model
         
         User = get_user_model()
@@ -159,13 +159,14 @@ def check_django_models():
         print()
 
         # Analytics data
-        analytics_count = AnalyticsRun.objects.count()
-        print(f"Analytics Runs: {analytics_count}")
+        analytics_count = AnalysisSession.objects.count()
+        print(f"Analytics Sessions: {analytics_count}")
         if analytics_count > 0:
-            runs = AnalyticsRun.objects.all()[:5]
+            runs = AnalysisSession.objects.all()[:5]
             for run in runs:
+                label = ", ".join(run.analysis_types[:2]) if run.analysis_types else run.name
                 print(
-                    f"   - {run.analytics_type} ({run.created_at.strftime('%Y-%m-%d')})"
+                    f"   - {label} ({run.created_at.strftime('%Y-%m-%d')})"
                 )
         print()
 

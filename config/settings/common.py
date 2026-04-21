@@ -16,8 +16,6 @@ SECRET_KEY = os.environ.get(
 )
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["*"]
-
 # Backend URL for onboarding emails
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -37,7 +35,8 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "graphene_django",
     "channels",
-    "drf_yasg",  # Added for Swagger (PRD API docs)
+    "drf_spectacular",
+    "storages",
 ]
 
 LOCAL_APPS = [
@@ -115,9 +114,15 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+    },
+}
 
 # AWS S3 Storage Configuration
-USE_S3 = os.getenv("USE_S3", "False").lower() == "true"
+USE_S3 = os.getenv("USE_S3", "True").lower() == "true"
 
 if USE_S3:
     # AWS Settings
@@ -125,13 +130,17 @@ if USE_S3:
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
     AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
-    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
-    AWS_LOCATION = "media"  # Base folder in S3
+    AWS_S3_CUSTOM_DOMAIN = os.getenv(
+        "AWS_S3_CUSTOM_DOMAIN",
+        f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com",
+    )
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_LOCATION = "media"
     AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
 
-    # Use S3 for file storage
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -144,6 +153,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",  # FIXED: Added for browsable API/Swagger login
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
@@ -204,18 +214,33 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# Swagger Settings (for Bearer auth UI)
-SWAGGER_SETTINGS = {
-    "USE_SESSION_AUTH": False,
-    "SECURITY_DEFINITIONS": {
-        "Bearer": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-            "description": 'JWT token: POST /api/token/ for token, paste as "Bearer <token>". Expires 60 mins.',
+# drf-spectacular OpenAPI settings
+SPECTACULAR_SETTINGS = {
+    "TITLE": "BIMFlow Suite API",
+    "DESCRIPTION": (
+        "Open-source BIM automation toolkit. Authenticate via /api/v1/auth/login/ "
+        "or /api/token/, then click Authorize and enter: <access_token>."
+    ),
+    "VERSION": "v1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
+    "SCHEMA_PATH_PREFIX_TRIM": False,
+    "ENUM_GENERATE_CHOICE_SUFFIX": True,
+    "ENUM_NAME_OVERRIDES": {},
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "operationsSorter": "alpha",
+    },
+    "SECURITY": [{"BearerAuth": []}],
+    "COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
         }
     },
-    "OPERATIONS_SORTER": "alpha",
 }
 
 # PostgreSQL Configuration

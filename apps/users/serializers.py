@@ -1,17 +1,23 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from apps.users.models import RequestSubmission, PasswordResetToken
 from .models import Organization, OrganizationMember
+import re
 
 User = get_user_model()
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class LoginSerializer(serializers.Serializer):
-    """Login – Swagger shows editable username/password fields."""
+    """Login – accepts either username or email with password."""
 
-    username = serializers.CharField(
-        max_length=150, required=True, help_text="Username (e.g., admin)"
+    username_or_email = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Username or email address",
     )
     password = serializers.CharField(
         max_length=128,
@@ -22,11 +28,45 @@ class LoginSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        username = attrs.get("username")
+        username_or_email = attrs.get("username_or_email")
         password = attrs.get("password")
-        if username and password:
+        if username_or_email and password:
             return attrs
-        raise serializers.ValidationError("Both username and password are required.")
+        raise serializers.ValidationError(
+            "Both username/email and password are required."
+        )
+
+
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """SimpleJWT serializer that accepts either username or email."""
+
+    username_or_email = serializers.CharField(required=True, write_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields.pop(self.username_field, None)
+
+    def validate(self, attrs):
+        username_or_email = (attrs.get("username_or_email") or "").strip()
+        password = attrs.get("password")
+        is_email = bool(EMAIL_PATTERN.match(username_or_email))
+
+        if is_email:
+            user = User.objects.filter(email__iexact=username_or_email).first()
+        else:
+            user = User.objects.filter(username__iexact=username_or_email).first()
+
+        if not user or not user.check_password(password) or not user.is_active:
+            raise AuthenticationFailed(
+                self.error_messages["no_active_account"],
+                "no_active_account",
+            )
+
+        refresh = self.get_token(user)
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -224,3 +264,74 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
         return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for authenticated password change."""
+
+    current_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={"input_type": "password"},
+        help_text="Current password",
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        min_length=8,
+        style={"input_type": "password"},
+        help_text="New password (min 8 chars)",
+    )
+    new_password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={"input_type": "password"},
+        help_text="Confirm new password",
+    )
+
+    def validate(self, attrs):
+        """Validate current password and ensure new passwords match."""
+        user = self.context["request"].user
+        current_password = attrs["current_password"]
+        new_password = attrs["new_password"]
+        new_password_confirm = attrs["new_password_confirm"]
+
+        if not user.check_password(current_password):
+            raise serializers.ValidationError(
+                {"current_password": "Current password is incorrect."}
+            )
+
+        if new_password != new_password_confirm:
+            raise serializers.ValidationError(
+                {"new_password": "New passwords do not match."}
+            )
+
+        if current_password == new_password:
+            raise serializers.ValidationError(
+                {"new_password": "New password must be different from current password."}
+            )
+
+        return attrs
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for user profile with all personal details."""
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "location",
+            "company",
+            "job_title",
+            "profile_picture",
+            "date_joined",
+            "last_login",
+            "is_active",
+        ]
+        read_only_fields = ["id", "username", "date_joined", "last_login", "is_active"]

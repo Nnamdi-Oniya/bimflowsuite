@@ -530,7 +530,7 @@ Describe:
 Architects need to export compliance-checked IFC files to DWG for CAD integration.
 
 ### Proposed Solution
-Add an export endpoint: POST /api/v1/generate/ifcs/{id}/export-dwg/
+Add an export endpoint: POST /api/v1/generate-model/ifcs/{id}/export-dwg/
 
 ### Alternative Solutions
 - Allow third-party DWG converters via API hook

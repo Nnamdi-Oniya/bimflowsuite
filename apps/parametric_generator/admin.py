@@ -2,7 +2,15 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count
-from .models import Project, Site, GeneratedIFC
+from .models import (
+    Project,
+    Site,
+    Facility,
+    Material,
+    GeneratedIFC,
+    SpatialStructure,
+    Element,
+)
 
 
 @admin.register(Project)
@@ -13,7 +21,6 @@ class ProjectAdmin(admin.ModelAdmin):
         "project_number",
         "name_truncated",
         "phase_colored",
-        "project_type",
         "client_name",
         "ifc_count",
         "created_at",
@@ -21,7 +28,6 @@ class ProjectAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         "phase",
-        "project_type",
         "client_type",
         "project_scale",
         "risk_classification",
@@ -215,7 +221,6 @@ class SiteAdmin(admin.ModelAdmin):
             "Project Type & Metadata",
             {
                 "fields": (
-                    "project_type",
                     "type_metadata",
                 )
             },
@@ -300,10 +305,10 @@ class SiteAdmin(admin.ModelAdmin):
 
 @admin.register(GeneratedIFC)
 class GeneratedIFCAdmin(admin.ModelAdmin):
-    """Admin interface for generated IFC files"""
+    """Admin interface for generated IFC files with detailed status"""
 
     list_display = [
-        "id",
+        "name_or_id",
         "project_link",
         "asset_type",
         "status_colored",
@@ -311,15 +316,19 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
         "created_at",
         "completed_at",
     ]
-    list_filter = ["status", "asset_type", "created_at"]
-    search_fields = ["project__name", "project__project_number"]
+    list_filter = ["status", "asset_type", "ifc_schema_version", "created_at"]
+    search_fields = ["project__name", "project__project_number", "name"]
     readonly_fields = [
+        "id",
         "project",
         "specifications",
         "status",
         "ifc_file",
         "file_size",
-        "error_message",
+        "file_format",
+        "generation_metadata_display",
+        "generation_warnings_display",
+        "error_details",
         "created_at",
         "updated_at",
         "completed_at",
@@ -329,7 +338,7 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
         (
             "IFC Information",
             {
-                "fields": ("project", "asset_type", "status"),
+                "fields": ("id", "name", "project", "asset_type", "status"),
             },
         ),
         (
@@ -342,13 +351,23 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
         (
             "File Details",
             {
-                "fields": ("ifc_file", "file_size"),
+                "fields": ("ifc_file", "file_size", "file_format"),
+            },
+        ),
+        (
+            "Generation Details",
+            {
+                "fields": (
+                    "generation_metadata_display",
+                    "generation_warnings_display",
+                ),
+                "classes": ("collapse",),
             },
         ),
         (
             "Status & Errors",
             {
-                "fields": ("error_message",),
+                "fields": ("error_message", "error_details"),
                 "classes": ("collapse",),
             },
         ),
@@ -362,6 +381,14 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
     )
 
     actions = ["retry_failed"]
+
+    def name_or_id(self, obj):
+        """Display name if available, otherwise truncated ID"""
+        if obj.name:
+            return obj.name[:50]
+        return str(obj.id)[:8] + "..."
+
+    name_or_id.short_description = "IFC Name / ID"
 
     def project_link(self, obj):
         """Link to parent project"""
@@ -402,10 +429,37 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
 
     file_size_display.short_description = "File Size"
 
+    def generation_metadata_display(self, obj):
+        """Display generation metadata in readable format"""
+        if not obj.generation_metadata:
+            return "No metadata available"
+
+        metadata = obj.generation_metadata
+        html_parts = []
+        for key, value in metadata.items():
+            html_parts.append(f"<div><strong>{key}:</strong> {value}</div>")
+
+        return format_html("<div>{}</div>", "".join(html_parts))
+
+    generation_metadata_display.short_description = "Generation Metadata"
+
+    def generation_warnings_display(self, obj):
+        """Display generation warnings"""
+        if not obj.generation_warnings:
+            return "No warnings"
+
+        warnings_html = []
+        for warning in obj.generation_warnings:
+            warnings_html.append(f"<div>⚠️ {warning}</div>")
+
+        return format_html("<div>{}</div>", "".join(warnings_html))
+
+    generation_warnings_display.short_description = "Generation Warnings"
+
     def retry_failed(self, request, queryset):
         """Reset failed IFCs to pending for retry"""
         count = queryset.filter(status="failed").update(
-            status="pending", error_message=""
+            status="pending", error_message="", error_details={}
         )
         self.message_user(request, f"{count} failed IFCs queued for retry")
 
@@ -418,3 +472,276 @@ class GeneratedIFCAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Prevent deletion of IFC records (audit trail)"""
         return False
+
+
+@admin.register(Facility)
+class FacilityAdmin(admin.ModelAdmin):
+    """Admin for facilities (building, road, bridge, railway, etc.)."""
+
+    list_display = [
+        "name",
+        "facility_type_display",
+        "project_link",
+        "site_link",
+        "created_at",
+    ]
+    list_filter = ["facility_type", "created_at"]
+    search_fields = ["name", "description", "project__name", "site__site_name"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic",
+            {"fields": ("id", "project", "site", "name", "facility_type", "description", "facility_image")},
+        ),
+        (
+            "Properties",
+            {"fields": ("properties",), "classes": ("collapse",)},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def facility_type_display(self, obj):
+        return obj.get_facility_type_display()
+
+    facility_type_display.short_description = "Type"
+
+    def project_link(self, obj):
+        url = reverse("admin:parametric_generator_project_change", args=[obj.project.id])
+        return format_html('<a href="{}">{}</a>', url, obj.project.name)
+
+    project_link.short_description = "Project"
+
+    def site_link(self, obj):
+        url = reverse("admin:parametric_generator_site_change", args=[obj.site.id])
+        return format_html('<a href="{}">{}</a>', url, obj.site.site_name)
+
+    site_link.short_description = "Site"
+
+
+@admin.register(Material)
+class MaterialAdmin(admin.ModelAdmin):
+    """Admin for materials scoped to a facility."""
+
+    list_display = ["name", "code", "facility_link", "created_at"]
+    list_filter = ["facility", "created_at"]
+    search_fields = ["name", "code", "facility__name"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic",
+            {"fields": ("id", "facility", "name", "code", "description")},
+        ),
+        (
+            "Properties",
+            {"fields": ("properties",), "classes": ("collapse",)},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def facility_link(self, obj):
+        url = reverse("admin:parametric_generator_facility_change", args=[obj.facility.id])
+        return format_html('<a href="{}">{}</a>', url, obj.facility.name)
+
+    facility_link.short_description = "Facility"
+
+
+@admin.register(SpatialStructure)
+class SpatialStructureAdmin(admin.ModelAdmin):
+    """Admin interface for spatial structures (hierarchical organization)"""
+
+    list_display = [
+        "id",
+        "name",
+        "spatial_type_display",
+        "level",
+        "site_link",
+        "parent_name",
+        "created_at",
+    ]
+    list_filter = [
+        "spatial_type",
+        "level",
+        "created_at",
+    ]
+    search_fields = ["name", "description", "site__site_name"]
+    readonly_fields = ["id", "level", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic Information",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "spatial_type",
+                    "description",
+                )
+            },
+        ),
+        (
+            "Hierarchy",
+            {
+                "fields": (
+                    "site",
+                    "parent",
+                    "level",
+                    "order_in_parent",
+                )
+            },
+        ),
+        (
+            "Properties",
+            {
+                "fields": ("properties",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def spatial_type_display(self, obj):
+        """Display spatial type with better formatting"""
+        return obj.get_spatial_type_display()
+
+    spatial_type_display.short_description = "Spatial Type"
+
+    def site_link(self, obj):
+        """Link to parent site"""
+        url = reverse("admin:parametric_generator_site_change", args=[obj.site.id])
+        return format_html('<a href="{}">{}</a>', url, obj.site.site_name)
+
+    site_link.short_description = "Site"
+
+    def parent_name(self, obj):
+        """Display parent structure name"""
+        return obj.parent.name if obj.parent else "—"
+
+    parent_name.short_description = "Parent Structure"
+
+
+@admin.register(Element)
+class ElementAdmin(admin.ModelAdmin):
+    """Admin interface for BIM assets (physical elements)"""
+
+    list_display = [
+        "id",
+        "name",
+        "asset_type_display",
+        "facility_link",
+        "material_name",
+        "structure_link",
+        "site_link",
+        "created_at",
+    ]
+    list_filter = [
+        "asset_type",
+        "facility",
+        "material",
+        "created_at",
+    ]
+    search_fields = ["name", "description", "spatial_structure__name"]
+    readonly_fields = ["id", "site", "created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Basic Information",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "asset_type",
+                    "description",
+                )
+            },
+        ),
+        (
+            "Location & Context",
+            {
+                "fields": (
+                    "site",
+                    "facility",
+                    "spatial_structure",
+                )
+            },
+        ),
+        (
+            "Materials & Geometry",
+            {
+                "fields": (
+                    "material",
+                    "geometry",
+                    "position",
+                )
+            },
+        ),
+        (
+            "Properties",
+            {
+                "fields": ("properties",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def asset_type_display(self, obj):
+        """Display asset type with better formatting"""
+        return obj.get_asset_type_display()
+
+    asset_type_display.short_description = "Asset Type"
+
+    def structure_link(self, obj):
+        """Link to parent spatial structure"""
+        url = reverse(
+            "admin:parametric_generator_spatialstructure_change",
+            args=[obj.spatial_structure.id],
+        )
+        return format_html('<a href="{}">{}</a>', url, obj.spatial_structure.name)
+
+    structure_link.short_description = "Spatial Structure"
+
+    def site_link(self, obj):
+        """Link to parent site"""
+        url = reverse("admin:parametric_generator_site_change", args=[obj.site.id])
+        return format_html('<a href="{}">{}</a>', url, obj.site.site_name)
+
+    site_link.short_description = "Site"
+
+    def facility_link(self, obj):
+        if not obj.facility:
+            return "—"
+        url = reverse("admin:parametric_generator_facility_change", args=[obj.facility.id])
+        return format_html('<a href="{}">{}</a>', url, obj.facility.name)
+
+    facility_link.short_description = "Facility"
+
+    def material_name(self, obj):
+        return obj.material.name if obj.material else "—"
+
+    material_name.short_description = "Material"
